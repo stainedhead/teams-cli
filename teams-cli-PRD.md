@@ -5,7 +5,7 @@
 | **Status** | Draft v0.2 (delegated user-account model; relay removed) |
 | **Date** | 2026-10-03 |
 | **Owner** | Enterprise Architecture (owner TBD) |
-| **Companion docs** | `agent-okta-d-PRD.md` (§7.5 `msgraph` provider, §7.6 Teams notes, §7.7 Agent User roadmap), `snow-cli-PRD.md` (§5 shared CLI core), `outlook-cli-PRD.md` |
+| **Companion docs** | `agent-okta-d-PRD.md` (§7.5 `msgraph` provider, §7.6 Teams notes, §7.7 Agent User roadmap), `agent-cli-core-PRD.md` in [stainedhead/agent-cli-core](https://github.com/stainedhead/agent-cli-core) (shared CLI core; originated in `snow-cli-PRD.md` §5), `outlook-cli-PRD.md` |
 | **Binary** | `teams` |
 
 **Evidence legend.** ✅ = confirmed against vendor documentation during research (2026-10-03). ⚠️ = not confirmed in vendor docs this session (engineering judgment, secondary or third-party source). Validate every ⚠️ in a sandbox tenant before depending on it. Graph endpoint shapes in §6 are from general Graph v1.0 knowledge and need checking against the current reference before build.
@@ -87,7 +87,7 @@ AUTH-1..4 are the same as in `outlook-cli-PRD.md` §7.
 
 ## 6. Command surface
 
-Uses the shared CLI core (`snow-cli-PRD.md` §5): daemon client, policy, envelope, bounds, audit, untrusted marking, exit codes.
+Uses the shared CLI core, specified in `agent-cli-core-PRD.md` in [stainedhead/agent-cli-core](https://github.com/stainedhead/agent-cli-core) (originated in `snow-cli-PRD.md` §5): daemon client, policy, envelope, bounds, audit, untrusted marking, exit codes.
 
 | Command | Purpose | Graph call (⚠️ verify) | Policy-gated |
 |---|---|---|---|
@@ -190,7 +190,7 @@ Spike (M0/M5): provision blueprint, identity and user in a sandbox; obtain token
 
 ## 12. Non-functional requirements
 
-- Go, static binary, macOS and Linux; shares `agent-cli-core` and the daemon client.
+- Go, static binary, macOS and Linux; shares [`agent-cli-core`](https://github.com/stainedhead/agent-cli-core) (its own repository; see `agent-cli-core-PRD.md`) and the daemon client.
 - No hosted components; no listeners; outbound HTTPS to Graph only.
 - Polling cost: bounded by `poll_interval`, number of watched destinations and Graph throttling; target < 2 Graph calls per destination per poll.
 - Audit JSONL per command (no bodies by default); correlate with Entra sign-in logs (non-interactive) for the agent user.
@@ -251,8 +251,8 @@ Applies to this repository only; the four Go repositories in the set (`agent-okt
 
 | ID | Target | Build | Artifact |
 |---|---|---|---|
-| REL-1a | **macOS, Apple silicon** | `darwin/arm64` | `.tar.gz` containing the `teams` binary, signed and notarized with an Apple Developer ID ⚠️ (see 16.7 item 1). |
-| REL-1b | **Windows via WSL** | `linux/amd64` (and `linux/arm64` for WSL on Arm, see 16.7) | `.tar.gz`; WSL runs Linux binaries, so **this is the Linux build** and no native Windows `.exe` is produced. Native Windows is not a target. |
+| REL-1a | **macOS, Apple silicon** | `darwin/arm64` | `.tar.gz` containing the `teams` binary, signed and notarized with an Apple Developer ID ⚠️ (see 16.8 item 1). |
+| REL-1b | **Windows via WSL** | `linux/amd64` (and `linux/arm64` for WSL on Arm, see 16.8) | `.tar.gz`; WSL runs Linux binaries, so **this is the Linux build** and no native Windows `.exe` is produced. Native Windows is not a target. |
 | REL-1c | **Linux, AWS-hosted container** | `linux/amd64` and `linux/arm64` (Graviton) | Multi-arch **OCI image** `ghcr.io/stainedhead/teams-cli:vX.Y.Z`, non-root, minimal base, plus the same Linux binaries as `.tar.gz` |
 
 Common to all targets:
@@ -268,7 +268,7 @@ Common to all targets:
 |---|---|
 | REL-5 | Releases follow **semantic versioning** (`MAJOR.MINOR.PATCH`). The git tag `vX.Y.Z` on `main` is the release identity. Tags are immutable: a version is never re-tagged or re-published. |
 | REL-6 | Releases start at `0.1.0` and stay `0.y.z` while this PRD is a draft. `1.0.0` is cut by an explicit decision, never automatically. |
-| REL-7 | The bump is taken from a **PR label** (`release:major`, `release:minor`, `release:patch`). An unlabeled PR that changes shipped code defaults to `patch`. A PR that touches only `docs/`, `user-docs/`, `specs/`, `*.md` or `INTENT.md` does **not** cause a release. This tool builds on the shared `agent-cli-core` defined in `snow-cli-PRD.md` §5. Where that module lives is open (see 16.7 item 6); `teams` pins a released version of it. |
+| REL-7 | The bump is taken from a **PR label** (`release:major`, `release:minor`, `release:patch`). An unlabeled PR that changes shipped code defaults to `patch`. A PR that touches only `docs/`, `user-docs/`, `specs/`, `*.md` or `INTENT.md` does **not** cause a release. This tool builds on the shared `agent-cli-core`, which is its own repository ([stainedhead/agent-cli-core](https://github.com/stainedhead/agent-cli-core), specified in `agent-cli-core-PRD.md`; it originated in `snow-cli-PRD.md` §5). `teams` pins a released version of it (see 16.6). |
 
 ### 16.4 Continuous delivery
 
@@ -288,18 +288,33 @@ Common to all targets:
 - **No Microsoft credentials in CI:** no refresh token or Graph token exists in the pipeline; device-code enrollment is a human step done outside CI.
 - **Runtime alternatives:** adopting the Entra Agent User model (§11) changes only how the daemon obtains the token, so it does not change this pipeline.
 
-### 16.6 Milestone placement
+### 16.6 Dependency on agent-cli-core
+
+`agent-cli-core` ([stainedhead/agent-cli-core](https://github.com/stainedhead/agent-cli-core), a Go library with no binary) is its own repository and a build dependency of this tool. The dependency chain is `agent-okta-d` (`pkg/client`) <- `agent-cli-core` <- `snow-cli`, `outlook-cli`, `teams-cli`.
+
+| ID | Requirement |
+|---|---|
+| DEP-1 | `go.mod` declares `github.com/stainedhead/agent-cli-core` at a **released semver tag**. No pseudo-versions and no `replace` directives on `main`. |
+| DEP-2 | Every workflow job that builds or tests resolves dependencies with the job's dynamic `GITHUB_TOKEN`: no personal access token and no stored secret. Such jobs set `permissions: contents: read` and `packages: read`. |
+| DEP-3 | Before `go mod download`, the job sets `GOPRIVATE=github.com/stainedhead/*` and configures git `url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"` from the job token. The token is never echoed and never written to caches or artifacts. |
+| DEP-4 | The repositories are public today, so the token is not strictly needed. The step is standard so that behavior is identical if visibility changes. |
+| DEP-5 | ⚠️ `GITHUB_TOKEN` is scoped to the repository running the workflow, so it cannot read a different private repository's contents. If `agent-cli-core` or `agent-okta-d` ever become private, they must be published through GitHub Packages with consumer repositories granted read on the package, decided before any visibility change. GitHub Packages has no Go module registry (unconfirmed). |
+| DEP-6 | Bumping the `agent-cli-core` version is an ordinary PR and must pass CI. |
+
+### 16.7 Milestone placement
 
 BLD-1 to BLD-6 are in place before the first milestone that merges Go code. The release pipeline (REL-1 to REL-14) is in place before the first tagged build, and no later than the first milestone that produces a runnable binary. Release signing and notarization may land later, in the hardening milestone, but unsigned builds are labelled pre-release until then.
 
-### 16.7 Open items (CI/CD)
+`teams` cannot compile against `agent-cli-core` until the core has a tagged release, which itself needs `agent-okta-d` to tag a release containing `pkg/client`. No code and no releases exist yet, so `go.mod` has no `require` for the core.
+
+### 16.8 Open items (CI/CD)
 
 1. **Apple signing.** Is an Apple Developer ID and notarization account available for CD? Until it is, darwin artifacts carry only the `cosign` signature and users must clear the quarantine attribute themselves ⚠️.
 2. **Registry.** `ghcr.io` is assumed, matching `agentic-team-w-paperclip`. Should images also be pushed to Amazon ECR for the AWS-hosted container case?
 3. **What "deploy" means.** This section treats it as publishing a release (REL-12). Confirm that no automatic rollout into an AWS environment is wanted.
 4. **Version bump rule.** PR labels are assumed (REL-7). Conventional commits are the alternative.
 5. **WSL on Arm.** Is `linux/arm64` for WSL wanted, or `linux/amd64` only?
-6. **Shared pipeline.** Should the common workflow steps live in one reusable workflow? Where it lives is tied to the open question of where `agent-cli-core` lives; it is not decided here.
+6. **Shared pipeline.** Should the common workflow steps live in one reusable workflow? `agent-cli-core` is its own repository (decided), but whether a reusable workflow is worth having, and where it would live, is still open.
 7. **WSL service support.** Running the daemon's service definition under WSL needs systemd in the WSL distribution ⚠️; confirm before documenting it as supported. Applies only where this tool installs a service.
 
 ## Appendix — Sources consulted

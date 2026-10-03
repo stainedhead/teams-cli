@@ -37,7 +37,8 @@ and disabling the Okta app are both part of the kill switch (`agent-okta-d-PRD.m
 | [agentic-teams](https://github.com/stainedhead/agentic-teams) | Documentation-only root that maps the set | Explains how the pieces relate |
 | [agentic-team-w-paperclip](https://github.com/stainedhead/agentic-team-w-paperclip) | Container images with the harnesses and Paperclip | Provides the runtime `teams` is deployed into |
 | [agent-okta-d](https://github.com/stainedhead/agent-okta-d) | Credential daemon rooted in Okta | Provides short-lived Graph tokens (`msgraph` provider) over a unix socket |
-| [snow-cli](https://github.com/stainedhead/snow-cli) | `snow`, ServiceNow CLI | Its PRD defines the shared `agent-cli-core` that `teams` is built from |
+| [agent-cli-core](https://github.com/stainedhead/agent-cli-core) | Shared Go library (no binary): envelope, exit codes, bounds, policy, audit, daemon-client wrapper | Build dependency of `teams`; pinned at a released tag |
+| [snow-cli](https://github.com/stainedhead/snow-cli) | `snow`, ServiceNow CLI | Sibling; the core originated in its PRD section 5 and now lives in `agent-cli-core` |
 | [outlook-cli](https://github.com/stainedhead/outlook-cli) | `outlook`, mail as the agent's Entra user | Sibling: shares the `msgraph` provider and the AUTH-1..4 requirements |
 | [teams-cli](https://github.com/stainedhead/teams-cli) | This repository | |
 
@@ -52,7 +53,7 @@ and disabling the Okta app are both part of the kill switch (`agent-okta-d-PRD.m
 - **Work anywhere an agent runs.** Desktops behind NAT and containers need only outbound HTTPS to Graph,
   with nothing of ours hosted or internet-reachable.
 - **Share one foundation with its sibling CLIs.** Daemon client, policy, output envelope, audit and
-  exit codes come from `agent-cli-core`, not from this repository.
+  exit codes come from [`agent-cli-core`](https://github.com/stainedhead/agent-cli-core), its own repository, not from this repository.
 
 ## Non-goals
 - Human mode, calls, meetings, voice, tabs, message extensions or bots.
@@ -60,7 +61,7 @@ and disabling the Okta app are both part of the kill switch (`agent-okta-d-PRD.m
 - Hosting any service: relay, bot endpoint or webhook receiver.
 - Holding credentials or talking to Okta. That is the daemon's job.
 - Being the authorization control. Graph and Teams policy enforce server side; CLI policy is a guardrail.
-- Deciding where `agent-cli-core` lives. That is an open question owned by the set, not this repo.
+- Owning or copying `agent-cli-core`. It is its own repository (decided); changes to it are made there.
 
 ## Scope boundary in one line
 > `teams` is the agent's Teams client, a policy-bounded caller of Microsoft Graph as its own user, not

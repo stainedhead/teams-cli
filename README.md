@@ -30,7 +30,8 @@ The PRD marks claims as confirmed against vendor documentation (checkmark) or no
 Part of the set rooted at [stainedhead/agentic-teams](https://github.com/stainedhead/agentic-teams).
 
 - [agent-okta-d](https://github.com/stainedhead/agent-okta-d): the daemon that holds credentials and serves tokens, including the `msgraph` provider this CLI uses.
-- [snow-cli](https://github.com/stainedhead/snow-cli): its PRD (section 5) defines the shared `agent-cli-core` module (daemon client, policy, envelope, bounds, audit, untrusted marking, exit codes) that `teams` builds on. Where `agent-cli-core` will live is an open question and is not decided here.
+- [snow-cli](https://github.com/stainedhead/snow-cli): sibling CLI; the shared core originated in its PRD section 5.
+- [agent-cli-core](https://github.com/stainedhead/agent-cli-core): the shared Go library (daemon client wrapper, policy, envelope, bounds, audit, untrusted marking, exit codes) that `teams` builds on. It is a build dependency in its own repository; `teams` pins a released tag. No release exists yet, so this repository does not require it yet.
 - [outlook-cli](https://github.com/stainedhead/outlook-cli): sibling CLI sharing the `msgraph` provider and the AUTH-1..4 requirements.
 - [teams-cli](https://github.com/stainedhead/teams-cli): this repository.
 - [agentic-team-w-paperclip](https://github.com/stainedhead/agentic-team-w-paperclip): a companion repository in the same set.
