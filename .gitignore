@@ -1,0 +1,27 @@
+# Binaries
+/bin/
+/dist/
+/teams
+*.exe
+*.test
+*.out
+
+# Coverage
+coverage.txt
+coverage.html
+
+# Local state, secrets, env
+.env
+.env.*
+*.pem
+*.key
+*.audit.jsonl
+
+# Go workspace
+go.work
+go.work.sum
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
