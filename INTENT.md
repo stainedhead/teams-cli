@@ -24,10 +24,12 @@ harness in container -> teams / snow / outlook / gh / aws / git -> agent-okta-d 
 **Why identity is per-agent and attributable.** Each agent has its own Okta application and its own
 user accounts downstream, so every action traces to exactly one agent, one agent can be disabled
 without touching the others, and humans can see who said what. In Teams that means the agent has its
-own directory entry and presence. Messages it sends are ordinary messages from that user, under
-normal Teams retention. Microsoft Graph cannot send chat messages with application-only permissions,
+own directory entry and presence. Messages it sends are ordinary messages from that user, expected to fall under
+normal Teams retention (the PRD asks compliance to confirm this). Microsoft Graph cannot send chat messages with application-only permissions,
 and we will not host a relay, so `teams` calls Graph delegated as that user, with short-lived tokens
-served by the daemon.
+served by the daemon. Okta does not gate Graph directly: access is gated by the Entra user's state
+plus the daemon holding the refresh token behind an Okta-federated role, so disabling the Entra user
+and disabling the Okta app are both part of the kill switch (`agent-okta-d-PRD.md` §13).
 
 ## Where this fits
 | Repository | Role | To / from `teams` |
