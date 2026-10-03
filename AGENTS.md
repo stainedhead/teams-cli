@@ -51,3 +51,7 @@ go test ./...
 
 - Do not force-push. Do not commit generated binaries, `.env` files or local state.
 - Commit messages are short and imperative.
+
+## Agent skill
+
+How agents use this tool is documented in the root repository's skill document, `skills/teams-cli.md`, in https://github.com/stainedhead/agentic-teams (see `skills/README.md`). That is its only home; do not copy it here. A change to the command surface, flags, exit codes, policy verbs or write modes, or forbidden actions is not finished until that skill is updated (see SKILL-1..7 in the PRD).
