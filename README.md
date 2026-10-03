@@ -4,6 +4,8 @@
 
 **Status: Draft PRD (v0.2). There is no implementation yet.** This repository currently holds the product requirements document and project scaffolding only.
 
+Purpose, wider context and scope: see [INTENT.md](INTENT.md).
+
 ## Why
 
 Agents need to reach the team in Teams, but Microsoft Graph application-only permissions cannot send chat messages (only `Teamwork.Migrate.All`, for import). An earlier draft proposed a bot behind a relay service we would host; that was dropped, because we will not run a relay.
@@ -48,6 +50,7 @@ teams-cli-PRD.md  product requirements
 
 ## Documentation
 
+- Intent: [INTENT.md](INTENT.md)
 - Requirements: [teams-cli-PRD.md](teams-cli-PRD.md)
 - Product and technical notes: [docs/](docs/)
 - User documentation: [user-docs/](user-docs/) (empty until the tool exists)

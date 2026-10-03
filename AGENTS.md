@@ -8,6 +8,7 @@ Rules for AI agents and human contributors working in this repository.
 
 ## Layout (planned; see README.md)
 
+- `INTENT.md` - why this repo exists, the wider agentic-teams context, goals, non-goals and scope. A shift in goal, direction or scope means updating INTENT.md first.
 - `cmd/teams/` - entry point only; no logic.
 - `internal/` - application code, organized by Clean Architecture layers (domain, usecase, adapters, infrastructure).
 - `docs/` - product and technical documentation (product-summary, product-details, technical-details, architectural-decision-record).
