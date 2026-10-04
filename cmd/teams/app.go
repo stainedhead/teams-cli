@@ -121,7 +121,7 @@ func assemble(ctx context.Context, cfg appConfig) (*app, error) {
 		return nil, err
 	}
 
-	cmds := newCommands(useCaseDeps{
+	cmds := newCommands(usecase.Deps{
 		Policy: provider, Graph: gc, Ledger: store, Cursors: store,
 		Audit: sink, Clock: cfg.Clock, Rand: cfg.Rand, Run: run,
 	})

@@ -5,8 +5,8 @@
 |---|---|
 | Phase 0: Spec & Research | In Progress (spec reviewed and made implementation-ready 2026-10-04; closes when step 2 of dev-flow commits) |
 | Phase F: Foundation (types, ports, archtest) | Complete (F1-F7, 2026-10-04) |
-| Phase P: Parallel build (WS-A domain, WS-B use cases, WS-C graph, WS-D state+policy+audit, WS-E cli+composition, WS-F docs+CI) | Not Started |
-| Phase I: Integration and hardening | Not Started |
+| Phase P: Parallel build (WS-A domain, WS-B use cases, WS-C graph, WS-D state+policy+audit, WS-E cli+composition, WS-F docs+CI) | Complete (WS-W4..W6 user docs deferred to dev-flow step 4) |
+| Phase I: Integration and hardening | Complete (I1-I4, E7; 2026-10-04) |
 
 ## Phase 0 Checklist
 - [x] Spec created from PRD
@@ -37,3 +37,4 @@ Verdict: implementation-ready. Residual risk: all Graph shapes unverified (M0 de
 - 2026-10-03: Spec directory created; PRD moved in.
 - 2026-10-04: Spec, architecture, data dictionary, research, plan, tasks rewritten implementation-ready; review verdict recorded.
 - 2026-10-04: Phase F done: go.mod (core v0.1.0, go-yaml), Makefile, domain types/errors/stubs, usecase ports + usecasetest skeleton, archtest, directory skeleton.
+- 2026-10-04: Phase P done; Phase I done: use cases wired into cmd/teams (usecase.New), E7 integration tests (cmd/teams/integration_test.go), UA code/test references filled. Gates: gofmt, vet, golangci-lint 0 issues, `go test -race -count=3 ./...` green, `make cross` (3 targets), `make skill`. Coverage: domain 99.2%, usecase 98.2%. Startup of `teams version` about 5 ms.

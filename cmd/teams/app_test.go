@@ -22,7 +22,6 @@ import (
 	"github.com/stainedhead/teams-cli/internal/adapters/policyfile"
 	"github.com/stainedhead/teams-cli/internal/infra/clock"
 	"github.com/stainedhead/teams-cli/internal/infra/config"
-	"github.com/stainedhead/teams-cli/internal/usecase"
 )
 
 const policyYAML = `
@@ -203,9 +202,6 @@ func TestNetworkCommandsFailClosedWithoutPolicy(t *testing.T) {
 }
 
 func TestCLIEndToEndStubDaemon(t *testing.T) {
-	if _, placeholder := newCommands(useCaseDeps{}).(notWired); placeholder {
-		t.Skip("use cases not wired yet (merge WS-B and update cmd/teams/usecase_wire.go)")
-	}
 	cfg := testConfig(t)
 	d := cli.Deps{NewCommands: commandsFor(cfg), Selftest: selftestFor(cfg), Build: cli.BuildInfo{Version: "t"}}
 	code, out := runCLI(t, d, "whoami")
@@ -232,26 +228,6 @@ func TestSelftestRunsThroughAssembly(t *testing.T) {
 	cfg.Env.PolicyPath = filepath.Join(t.TempDir(), "missing")
 	if code, _ := runCLI(t, cli.Deps{Selftest: selftestFor(cfg)}, "selftest"); code != output.ExitValidation {
 		t.Fatalf("selftest without policy: %d", code)
-	}
-}
-
-func TestNotWiredPlaceholder(t *testing.T) {
-	c := notWired{}
-	ctx := context.Background()
-	if _, err := c.Whoami(ctx); err == nil {
-		t.Fatal()
-	}
-	_, e1 := c.Destinations(ctx)
-	_, e2 := c.Send(ctx, usecase.SendRequest{})
-	_, e3 := c.Reply(ctx, usecase.ReplyRequest{})
-	_, e4 := c.Inbox(ctx, usecase.InboxRequest{})
-	_, e5 := c.Ack(ctx, usecase.AckRequest{})
-	_, e6 := c.ThreadGet(ctx, usecase.ThreadRequest{})
-	_, e7 := c.Selftest(ctx, usecase.SelftestRequest{})
-	for _, e := range []error{e1, e2, e3, e4, e5, e6, e7} {
-		if output.ExitOf(e) != output.ExitValidation {
-			t.Fatalf("%v", e)
-		}
 	}
 }
 
