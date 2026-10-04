@@ -2,8 +2,11 @@ package state
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/stainedhead/teams-cli/internal/domain"
@@ -92,7 +95,9 @@ func (lf *ledgerFile) normalize() {
 func (lf *ledgerFile) prune(now time.Time) {
 	cut := now.Add(-LedgerRetention)
 	for k, e := range lf.Entries {
-		if e.State != string(domain.StatePending) && e.Updated.Before(cut) {
+		// Pending entries never expire, except the slot of an unkeyed send:
+		// it has no key to retry and only ever counted toward the windows.
+		if (e.State != string(domain.StatePending) || strings.HasPrefix(k, slotPrefix)) && e.Updated.Before(cut) {
 			delete(lf.Entries, k)
 		}
 	}
@@ -179,6 +184,69 @@ func (s *Store) Reserve(_ context.Context, key, payloadHash string, dest domain.
 		return domain.Reservation{}, err
 	}
 	return res, nil
+}
+
+// slotPrefix marks the synthetic key of an unkeyed send's reservation.
+const slotPrefix = "~slot:"
+
+func newSlot() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return slotPrefix + hex.EncodeToString(b[:])
+}
+
+// Claim checks the limits and reserves in one locked operation (FR-R4). A
+// keyed claim replays or conflicts exactly like Reserve (without limit checks
+// for a replay); a new, retried or unkeyed claim is denied, with nothing
+// written, when a rate window or the reply depth is full. Pending
+// reservations count toward the windows.
+func (s *Store) Claim(_ context.Context, c domain.SendClaim) (domain.Claim, error) {
+	var out domain.Claim
+	err := s.mutateLedger(c.Now, func(lf *ledgerFile) (bool, error) {
+		key := c.Key
+		var prior entryDTO
+		exists := false
+		if key != "" {
+			prior, exists = lf.Entries[key]
+			if exists {
+				if prior.PayloadHash != c.PayloadHash {
+					return false, domain.NewConflict("idempotency key "+key+" was used with a different payload",
+						"use a new --idempotency-key for a different message")
+				}
+				switch domain.EntryState(prior.State) {
+				case domain.StateSent:
+					out.Reservation = domain.Reservation{Outcome: domain.ReserveReplay, Entry: prior.domain()}
+					out.Decision = domain.Decision{Allowed: true}
+					return false, nil
+				case domain.StatePending:
+					return false, domain.NewConflict("idempotency key "+key+" is pending: an earlier attempt may or may not have been delivered",
+						"check the destination for the message, then use a new --idempotency-key (or enable send.marker_scan)")
+				}
+			}
+		}
+		if d := c.Check(lf.history(c.HistorySince())); !d.Allowed {
+			out.Decision = d
+			return false, nil
+		}
+		outcome := domain.ReserveNew
+		if exists { // failed entry: back to pending
+			outcome = domain.ReserveRetry
+		}
+		if key == "" {
+			key = newSlot()
+			out.Slot = key
+		}
+		e := entryDTO{Key: key, PayloadHash: c.PayloadHash, Alias: string(c.Alias), ThreadID: c.ThreadID,
+			State: string(domain.StatePending), Created: c.Now, Updated: c.Now}
+		lf.Entries[key] = e
+		out.Decision = domain.Decision{Allowed: true}
+		out.Reservation = domain.Reservation{Outcome: outcome, Entry: e.domain()}
+		return true, nil
+	})
+	if err != nil {
+		return domain.Claim{}, err
+	}
+	return out, nil
 }
 
 // Complete records the posted message id, marks the entry sent and adds it to

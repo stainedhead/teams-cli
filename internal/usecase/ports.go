@@ -24,6 +24,10 @@ type Graph interface {
 
 // Ledger is the idempotency ledger and sent-history port (adapters/state).
 type Ledger interface {
+	// Claim atomically checks rate and loop limits against sent plus pending
+	// history and reserves the key (or a slot for an unkeyed send) in one
+	// locked operation (FR-R4).
+	Claim(ctx context.Context, c domain.SendClaim) (domain.Claim, error)
 	Reserve(ctx context.Context, key, payloadHash string, dest domain.Alias, thread string, now time.Time) (domain.Reservation, error)
 	Complete(ctx context.Context, key, msgID string, now time.Time) error
 	Fail(ctx context.Context, key string, notSent bool) error

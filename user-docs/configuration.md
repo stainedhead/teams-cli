@@ -82,7 +82,7 @@ Authorization uses the sender's object id from Graph, never a display name or me
 | `content_filters` | none | Any of `secret_patterns`, `classification_markers` |
 | `classification_markers` | empty | Case-insensitive substrings that block a send when `classification_markers` filter is on |
 | `link_allowlist` | empty (unrestricted) | Bare hosts such as `example.com` or `*.example.com`; when non-empty every link host must match |
-| `rate.per_minute` / `rate.per_hour` | `10` / `100` | Sliding windows over the local send history |
+| `rate.per_minute` / `rate.per_hour` | `10` / `100` | Sliding windows over the local send history. Sends still in flight (or with an unknown outcome) count, and the check and the reservation happen in one locked step, so parallel `teams` processes cannot exceed the limit |
 | `reply_depth_max` | `6` | Maximum agent messages per thread within `reply_window` (loop guard) |
 | `reply_window` | `24h` | |
 | `marker_scan` | `false` | Optional duplicate-send check; relies on unverified Graph behavior |

@@ -99,9 +99,6 @@ func (s *service) post(ctx context.Context, c *call, q postReq) (SendResult, err
 		}, nil
 	}
 
-	if err := s.recordIntent(ctx, c); err != nil {
-		return SendResult{}, err
-	}
 	chatID := dest.ChatID
 	if dest.Kind == domain.KindUser {
 		if chatID, _, err = s.resolveChat(ctx, dest, false); err != nil {
@@ -111,13 +108,18 @@ func (s *service) post(ctx context.Context, c *call, q postReq) (SendResult, err
 	if q.key != "" && p.Send.MarkerScan {
 		out.MarkerKey = markerHash(q.key, q.alias)
 	}
-	if q.key != "" {
-		res, done, err := s.reserve(ctx, c, p, dest, chatID, q, out, now)
-		if err != nil || done {
-			return res, err
-		}
+	// Check the limits and reserve the key (or a slot, for an unkeyed send) in
+	// one locked ledger operation, so concurrent processes cannot all pass the
+	// check (FR-R4).
+	res, ledgerKey, done, err := s.claim(ctx, c, p, dest, chatID, q, out, now)
+	if err != nil || done {
+		return res, err
 	}
-	return s.deliver(ctx, c, dest, chatID, q, out)
+	if err := s.recordIntent(ctx, c); err != nil {
+		_ = s.d.Ledger.Fail(ctx, ledgerKey, true) // nothing was sent: release the slot
+		return SendResult{}, err
+	}
+	return s.deliver(ctx, c, dest, chatID, q, out, ledgerKey)
 }
 
 // checkContent applies the content filters and link allowlist (FR-9, FR-12).
@@ -177,26 +179,41 @@ func markerHash(key string, a domain.Alias) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-// reserve claims the idempotency key. done=true means the result is final
-// (replay or marker-scan recovery) and nothing is posted.
-func (s *service) reserve(ctx context.Context, c *call, p domain.Policy, dest domain.Destination, chatID string, q postReq, out domain.OutMessage, now time.Time) (SendResult, bool, error) {
-	hash := domain.PayloadHash(q.alias, q.threadID, out)
-	rsv, err := s.d.Ledger.Reserve(ctx, q.key, hash, q.alias, q.threadID, now)
+// claim atomically checks the limits and reserves the idempotency key or an
+// unkeyed slot. It returns the ledger key to complete or fail. done=true means
+// the result is final (replay or marker-scan recovery) and nothing is posted.
+func (s *service) claim(ctx context.Context, c *call, p domain.Policy, dest domain.Destination, chatID string, q postReq, out domain.OutMessage, now time.Time) (SendResult, string, bool, error) {
+	window := p.Send.ReplyWindow
+	if window <= 0 {
+		window = defaultReplyWindow
+	}
+	cl, err := s.d.Ledger.Claim(ctx, domain.SendClaim{
+		Key: q.key, PayloadHash: domain.PayloadHash(q.alias, q.threadID, out), Alias: q.alias, ThreadID: q.threadID, Now: now,
+		Rate: p.Send.Rate, RunWrites: s.runWrites(), MaxRun: p.Limits.MaxWritesPerRun,
+		ReplyDepthMax: p.Send.ReplyDepthMax, ReplyWindow: window,
+	})
 	if err != nil {
-		if p.Send.MarkerScan && output.CategoryOf(err) == output.CategoryConflict && !strings.Contains(err.Error(), "different payload") {
+		if q.key != "" && p.Send.MarkerScan && output.CategoryOf(err) == output.CategoryConflict && !strings.Contains(err.Error(), "different payload") {
 			if res, ok := s.recoverByMarker(ctx, c, dest, chatID, q, now); ok {
-				return res, true, nil
+				return res, q.key, true, nil
 			}
 		}
-		return SendResult{}, false, err
+		return SendResult{}, "", false, err
 	}
-	if rsv.Outcome != domain.ReserveReplay {
-		return SendResult{}, false, nil
+	if !cl.Decision.Allowed {
+		return SendResult{}, "", false, denyErr(c, cl.Decision)
 	}
-	c.outcome = outcomeDeduplicated
-	c.set("deduplicated", "true")
-	c.set("message_id", rsv.Entry.MessageID)
-	return SendResult{MessageID: rsv.Entry.MessageID, ThreadID: replayThread(q, rsv.Entry), Deduplicated: true}, true, nil
+	rsv := cl.Reservation
+	if rsv.Outcome == domain.ReserveReplay {
+		c.outcome = outcomeDeduplicated
+		c.set("deduplicated", "true")
+		c.set("message_id", rsv.Entry.MessageID)
+		return SendResult{MessageID: rsv.Entry.MessageID, ThreadID: replayThread(q, rsv.Entry), Deduplicated: true}, q.key, true, nil
+	}
+	if q.key != "" {
+		return SendResult{}, q.key, false, nil
+	}
+	return SendResult{}, cl.Slot, false, nil
 }
 
 func replayThread(q postReq, e domain.LedgerEntry) string {
@@ -230,7 +247,7 @@ func (s *service) recoverByMarker(ctx context.Context, c *call, dest domain.Dest
 // deliver posts and updates the ledger. A failure that proves nothing was
 // processed (domain.NotSent) marks the key failed; any other failure leaves
 // it pending (ambiguous, FR-14).
-func (s *service) deliver(ctx context.Context, c *call, dest domain.Destination, chatID string, q postReq, out domain.OutMessage) (SendResult, error) {
+func (s *service) deliver(ctx context.Context, c *call, dest domain.Destination, chatID string, q postReq, out domain.OutMessage, ledgerKey string) (SendResult, error) {
 	s.addWrite()
 	var res domain.PostResult
 	var err error
@@ -241,9 +258,7 @@ func (s *service) deliver(ctx context.Context, c *call, dest domain.Destination,
 	}
 	if err != nil {
 		notSent := domain.IsNotSent(err)
-		if q.key != "" {
-			_ = s.d.Ledger.Fail(ctx, q.key, notSent)
-		}
+		_ = s.d.Ledger.Fail(ctx, ledgerKey, notSent)
 		if notSent {
 			return SendResult{}, err
 		}
@@ -260,17 +275,31 @@ func (s *service) deliver(ctx context.Context, c *call, dest domain.Destination,
 	now := s.d.Clock.Now()
 	c.status = 201
 	c.set("message_id", res.MessageID)
-	if q.key != "" {
-		if e := s.d.Ledger.Complete(ctx, q.key, res.MessageID, now); e != nil {
-			c.set("warn", "ledger_update_failed")
-		}
-	} else if e := s.d.Ledger.RecordSent(ctx, domain.Sent{At: now, Alias: q.alias, ThreadID: thread, MessageID: res.MessageID}); e != nil {
+	var lerr error
+	if e := s.d.Ledger.Complete(ctx, ledgerKey, res.MessageID, now); e != nil {
 		c.set("warn", "ledger_update_failed")
+		lerr = &ledgerUpdateError{messageID: res.MessageID, cause: e}
 	}
 	if dest.Kind == domain.KindChannel {
 		_ = s.d.Ledger.PutThread(ctx, thread)
 	}
-	return SendResult{MessageID: res.MessageID, ThreadID: thread}, nil
+	// A failed ledger update still returns the result: the message is posted.
+	return SendResult{MessageID: res.MessageID, ThreadID: thread}, lerr
+}
+
+// ledgerUpdateError reports a delivered message whose send record could not
+// be written, so later rate and loop checks may undercount (FR-R4).
+type ledgerUpdateError struct {
+	messageID string
+	cause     error
+}
+
+func (e *ledgerUpdateError) Error() string {
+	return "message delivered (message_id " + e.messageID + ") but the send ledger could not be updated: " + e.cause.Error()
+}
+func (e *ledgerUpdateError) Unwrap() error { return e.cause }
+func (e *ledgerUpdateError) Hint() string {
+	return "do not resend; the message was posted. Rate and reply-depth limits may undercount until the state directory is fixed"
 }
 
 // ambiguousError marks a write whose outcome is unknown. It keeps the cause's

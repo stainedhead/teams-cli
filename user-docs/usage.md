@@ -60,7 +60,7 @@ printf 'Deploy finished' | teams send --to channel:sdlc-alerts --file -
 
 Result: `{message_id, thread_id, deduplicated, dry_run, findings}`. `findings` lists content-filter hits (filter name and pattern id only).
 
-Checks run in a fixed order and the first failure wins: policy and identity, destination listed and `send: true`, size, empty or control characters, mentions, content filters, link allow-list, rate limits, loop guard, idempotency record, then the post.
+Checks run in a fixed order and the first failure wins: policy and identity, destination listed and `send: true`, size, empty or control characters, mentions, content filters, link allow-list, rate limits, loop guard, idempotency record, then the post. The rate limits, loop guard and idempotency record are checked and reserved in one locked step, so parallel sends cannot exceed them. If the post succeeds but the send history cannot be written, the command exits non-zero with `message delivered` and the `message_id`; do not resend.
 
 ### Idempotency
 

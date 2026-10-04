@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stainedhead/agent-cli-core/output"
 
 	"github.com/stainedhead/teams-cli/internal/domain"
 	"github.com/stainedhead/teams-cli/internal/usecase"
@@ -386,21 +389,96 @@ func TestNotSentAllowsRetry(t *testing.T) {
 	}
 }
 
-func TestLedgerUpdateFailureAfterPostIsWarned(t *testing.T) {
-	e := newEnv(t)
-	e.Ledger.Errs = map[string]error{"Complete": errAmbiguous}
-	res, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x", IdempotencyKey: "k"})
-	wantOK(t, err)
-	if res.MessageID == "" || lastEvent(t, e).Extra["warn"] != "ledger_update_failed" {
-		t.Fatalf("res=%+v audit=%+v", res, lastEvent(t, e))
+// FR-R4: a failed ledger update after a delivered post is an error that names
+// the message id, for keyed and unkeyed sends alike (not only an audit extra).
+func TestLedgerUpdateFailureAfterPostIsSurfaced(t *testing.T) {
+	for _, key := range []string{"k", ""} {
+		e := newEnv(t)
+		e.Ledger.Errs = map[string]error{"Complete": errAmbiguous}
+		res, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x", IdempotencyKey: key})
+		if err == nil || res.MessageID == "" || !strings.Contains(err.Error(), "delivered") || !strings.Contains(err.Error(), res.MessageID) {
+			t.Fatalf("key %q: res=%+v err=%v", key, res, err)
+		}
+		if lastEvent(t, e).Extra["warn"] != "ledger_update_failed" {
+			t.Fatalf("audit = %+v", lastEvent(t, e))
+		}
 	}
-	e2 := newEnv(t)
-	e2.Ledger.Errs = map[string]error{"RecordSent": errAmbiguous}
+}
+
+// FR-R4: N concurrent sends against a limit of K: exactly K are posted.
+func TestConcurrentSendsRespectRateLimit(t *testing.T) {
+	const n, k = 12, 4
+	e := envWith(t, func(p *domain.Policy) {
+		p.Send.Rate = domain.Rate{PerMinute: k}
+		p.Limits.MaxWritesPerRun = 0
+		p.Send.ReplyDepthMax = 0
+	})
+	var wg sync.WaitGroup
+	var ok, denied atomic.Int32
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			svc := e.NewService() // each goroutine is its own "process" over the shared ledger
+			req := usecase.SendRequest{Alias: "chat:dev", Text: "x"}
+			if i%2 == 0 {
+				req.IdempotencyKey = fmt.Sprintf("key-%d", i) // keyed and unkeyed sends share the window
+			}
+			if _, err := svc.Send(ctx, req); err == nil {
+				ok.Add(1)
+			} else if output.CategoryOf(err) == output.CategoryPolicyDenied {
+				denied.Add(1)
+			} else {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	if ok.Load() != k || denied.Load() != n-k || graphWrites(e) != k {
+		t.Fatalf("ok=%d denied=%d posts=%d, want %d/%d/%d", ok.Load(), denied.Load(), graphWrites(e), k, n-k, k)
+	}
+}
+
+// FR-R4: the same atomicity for the reply-depth guard.
+func TestConcurrentSendsRespectLoopGuard(t *testing.T) {
+	const n, k = 8, 3
+	e := envWith(t, func(p *domain.Policy) { p.Send.ReplyDepthMax = k; p.Send.Rate = domain.Rate{} })
+	var wg sync.WaitGroup
+	var ok atomic.Int32
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := e.NewService().Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x"}); err == nil {
+				ok.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if ok.Load() != k || graphWrites(e) != k {
+		t.Fatalf("ok=%d posts=%d, want %d", ok.Load(), graphWrites(e), k)
+	}
+}
+
+// FR-R4: an ambiguous unkeyed failure keeps counting toward the window; a
+// provable non-send releases the slot.
+func TestUnkeyedSlotReleasedOnlyWhenNotSent(t *testing.T) {
+	e := envWith(t, func(p *domain.Policy) { p.Send.Rate = domain.Rate{PerMinute: 1} })
+	e.Graph.PostErr = domain.NotSent(errAmbiguous)
+	_, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x"})
+	if err == nil {
+		t.Fatal("want error")
+	}
+	e.Graph.PostErr = nil
+	if _, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x"}); err != nil {
+		t.Fatalf("slot of a not-sent post must be released: %v", err)
+	}
+	e2 := envWith(t, func(p *domain.Policy) { p.Send.Rate = domain.Rate{PerMinute: 1} })
+	e2.Graph.PostErr = errAmbiguous
+	_, _ = e2.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x"})
+	e2.Graph.PostErr = nil
 	_, err = e2.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x"})
-	wantOK(t, err)
-	if lastEvent(t, e2).Extra["warn"] != "ledger_update_failed" {
-		t.Fatalf("audit = %+v", lastEvent(t, e2))
-	}
+	wantExit(t, err, exitPolicy)
 }
 
 func TestMarkerScanOnAndOff(t *testing.T) {
@@ -607,8 +685,8 @@ func TestAuditIntentBeforePostBlocksPostOnFailure(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "nothing was sent") {
 		t.Fatalf("err = %v", err)
 	}
-	if graphWrites(e) != 0 || len(e.Ledger.Entries) != 0 {
-		t.Fatalf("post or reservation happened despite audit failure (writes=%d)", graphWrites(e))
+	if graphWrites(e) != 0 || e.Ledger.Entries["k1"].State != domain.StateFailed {
+		t.Fatalf("post happened or reservation not released (writes=%d, entry=%+v)", graphWrites(e), e.Ledger.Entries["k1"])
 	}
 	// Healthy sink: the intent precedes the final event.
 	e2 := newEnv(t)

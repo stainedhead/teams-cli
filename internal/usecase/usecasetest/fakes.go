@@ -8,6 +8,7 @@ package usecasetest
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -247,6 +248,7 @@ type Ledger struct {
 	Entries map[string]domain.LedgerEntry
 	Sent    []domain.Sent
 	Threads map[string]time.Time
+	slots   int
 	// Fail holds persistent errors per method name (Reserve, Complete, Fail,
 	// SentSince, SentInThread, RecordSent, PutThread, ActiveThreads).
 	Errs map[string]error
@@ -282,6 +284,51 @@ func (l *Ledger) Reserve(_ context.Context, key, hash string, dest domain.Alias,
 		return domain.Reservation{Outcome: domain.ReserveRetry, Entry: e}, nil
 	}
 	return domain.Reservation{}, domain.NewConflict("idempotency key "+key+" is pending: an earlier attempt may or may not have been delivered", "check the destination for the message")
+}
+
+// Claim is the in-memory twin of state.Store.Claim.
+func (l *Ledger) Claim(_ context.Context, c domain.SendClaim) (domain.Claim, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.err("Claim"); err != nil {
+		return domain.Claim{}, err
+	}
+	if err := l.err("Reserve"); err != nil {
+		return domain.Claim{}, err
+	}
+	if l.Entries == nil {
+		l.Entries = map[string]domain.LedgerEntry{}
+	}
+	key := c.Key
+	prior, exists := l.Entries[key]
+	if key != "" && exists {
+		if prior.PayloadHash != c.PayloadHash {
+			return domain.Claim{}, domain.NewConflict("idempotency key "+key+" was used with a different payload", "use a new --idempotency-key for a different message")
+		}
+		switch prior.State {
+		case domain.StateSent:
+			return domain.Claim{Decision: domain.Decision{Allowed: true}, Reservation: domain.Reservation{Outcome: domain.ReserveReplay, Entry: prior}}, nil
+		case domain.StatePending:
+			return domain.Claim{}, domain.NewConflict("idempotency key "+key+" is pending: an earlier attempt may or may not have been delivered", "check the destination for the message")
+		}
+	}
+	if d := c.Check(l.history(c.HistorySince())); !d.Allowed {
+		return domain.Claim{Decision: d}, nil
+	}
+	out := domain.Claim{Decision: domain.Decision{Allowed: true}}
+	outcome := domain.ReserveNew
+	if key != "" && exists {
+		outcome = domain.ReserveRetry
+	}
+	if key == "" {
+		l.slots++
+		key = fmt.Sprintf("~slot:%d", l.slots)
+		out.Slot = key
+	}
+	e := domain.LedgerEntry{Key: key, PayloadHash: c.PayloadHash, Alias: string(c.Alias), ThreadID: c.ThreadID, State: domain.StatePending, Created: c.Now, Updated: c.Now}
+	l.Entries[key] = e
+	out.Reservation = domain.Reservation{Outcome: outcome, Entry: e}
+	return out, nil
 }
 
 // Complete marks a key sent and records the send in the history.
@@ -545,6 +592,7 @@ func (c *CursorStore) DropChat(_ context.Context, a domain.Alias) error {
 
 // PolicyProvider serves a fixed policy.
 type PolicyProvider struct {
+	mu    sync.Mutex
 	P     domain.Policy
 	Err   error
 	Calls int
@@ -552,6 +600,8 @@ type PolicyProvider struct {
 
 // Policy returns the fixed policy.
 func (p *PolicyProvider) Policy(context.Context) (domain.Policy, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.Calls++
 	return p.P, p.Err
 }

@@ -2,9 +2,12 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -281,4 +284,105 @@ func TestLedgerPlantedTokenNeverPersistedByStore(t *testing.T) {
 	if strings.Contains(string(b), "Bearer") || strings.Contains(string(b), "eyJ") {
 		t.Fatal("unexpected credential-like text")
 	}
+}
+
+func claimReq(key, hash string, now time.Time) domain.SendClaim {
+	return domain.SendClaim{
+		Key: key, PayloadHash: hash, Alias: "chat:dev", ThreadID: "chat:dev/chat", Now: now,
+		Rate: domain.Rate{PerMinute: 3}, ReplyWindow: time.Hour,
+	}
+}
+
+// FR-R4: concurrent claims against a limit of K: exactly K are granted, keyed
+// and unkeyed alike, on the real file-backed ledger.
+func TestClaimConcurrentExactlyK(t *testing.T) {
+	s, fc := newStore(t)
+	const n, k = 16, 3
+	var wg sync.WaitGroup
+	var granted atomic.Int32
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			key := ""
+			if i%2 == 0 {
+				key = fmt.Sprintf("k%d", i)
+			}
+			cl, err := s.Claim(bg, claimReq(key, "h", fc.Now()))
+			if err != nil {
+				t.Errorf("claim: %v", err)
+				return
+			}
+			if cl.Decision.Allowed {
+				granted.Add(1)
+			}
+		}(i)
+	}
+	wg.Wait()
+	if granted.Load() != k {
+		t.Fatalf("granted %d, want %d", granted.Load(), k)
+	}
+}
+
+func TestClaimSemantics(t *testing.T) {
+	s, fc := newStore(t)
+	// New keyed claim writes a pending entry that counts toward the window.
+	cl, err := s.Claim(bg, claimReq("a", "h", fc.Now()))
+	if err != nil || !cl.Decision.Allowed || cl.Reservation.Outcome != domain.ReserveNew || cl.Slot != "" {
+		t.Fatalf("new: %+v %v", cl, err)
+	}
+	// Unkeyed claims get a slot; completing it records history, failing it releases it.
+	u, err := s.Claim(bg, claimReq("", "", fc.Now()))
+	if err != nil || u.Slot == "" || !strings.HasPrefix(u.Slot, "~slot:") {
+		t.Fatalf("slot: %+v %v", u, err)
+	}
+	if err := s.Fail(bg, u.Slot, true); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := s.SentSince(bg, fc.Now().Add(-time.Minute)); len(n) != 1 {
+		t.Fatalf("history after release = %+v", n)
+	}
+	// Pending key conflicts (exit 7); different payload conflicts.
+	if _, err := s.Claim(bg, claimReq("a", "h", fc.Now())); output.ExitOf(err) != 7 {
+		t.Fatalf("pending: %v", err)
+	}
+	if _, err := s.Claim(bg, claimReq("a", "other", fc.Now())); output.ExitOf(err) != 7 {
+		t.Fatalf("payload: %v", err)
+	}
+	// Sent key replays even when the window is full.
+	if err := s.Complete(bg, "a", "m1", fc.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"b", "c"} {
+		if cl, _ := s.Claim(bg, claimReq(k, "h", fc.Now())); !cl.Decision.Allowed {
+			t.Fatalf("%s denied", k)
+		}
+	}
+	if cl, _ := s.Claim(bg, claimReq("d", "h", fc.Now())); cl.Decision.Allowed {
+		t.Fatal("window should be full")
+	}
+	rp, err := s.Claim(bg, claimReq("a", "h", fc.Now()))
+	if err != nil || rp.Reservation.Outcome != domain.ReserveReplay || rp.Reservation.Entry.MessageID != "m1" {
+		t.Fatalf("replay: %+v %v", rp, err)
+	}
+	// A failed key is retried as ReserveRetry once the window has room.
+	_ = s.Fail(bg, "b", true)
+	rt, err := s.Claim(bg, claimReq("b", "h", fc.Now()))
+	if err != nil || rt.Reservation.Outcome != domain.ReserveRetry || !rt.Decision.Allowed {
+		t.Fatalf("retry: %+v %v", rt, err)
+	}
+	// A denied claim writes nothing.
+	if _, ok := mustEntry(t, s, "d"); ok {
+		t.Fatal("denied claim reserved a key")
+	}
+}
+
+func mustEntry(t *testing.T, s *Store, key string) (domain.LedgerEntry, bool) {
+	t.Helper()
+	var e entryDTO
+	var ok bool
+	if err := s.readLedger(func(lf *ledgerFile) { e, ok = lf.Entries[key] }); err != nil {
+		t.Fatal(err)
+	}
+	return e.domain(), ok
 }
