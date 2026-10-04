@@ -12,4 +12,4 @@ Not usable end to end yet: the `agent-okta-d` client adapter is unreleased, so e
 
 Operators who run AI agents and need them to reach people in Teams under a policy the agent cannot edit. Adoption help is in `../user-docs/`.
 
-Requirements source: `../teams-cli-PRD.md` (Draft v0.2). Intent: `../INTENT.md`.
+Requirements source: `../specs/archive/261003-teams-cli/teams-cli-PRD.md` (Draft v0.2). Intent: `../INTENT.md`.

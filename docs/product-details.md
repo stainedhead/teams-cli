@@ -1,6 +1,6 @@
 # Product Details
 
-Describes behavior as built. Graph behavior is unverified against a real tenant. Requirements: `../teams-cli-PRD.md`; user-facing usage: `../user-docs/usage.md`.
+Describes behavior as built. Graph behavior is unverified against a real tenant. Requirements: `../specs/archive/261003-teams-cli/teams-cli-PRD.md`; user-facing usage: `../user-docs/usage.md`.
 
 ## Command surface
 

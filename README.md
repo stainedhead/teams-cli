@@ -44,7 +44,7 @@ internal/         domain, usecase, adapters (cli, graph, state, policyfile, audi
 docs/             product and technical documentation, ADRs, deferred work, unverified assumptions
 user-docs/        install, configuration, usage and troubleshooting
 specs/            feature specs; finished ones in specs/archive/
-teams-cli-PRD.md  product requirements
+specs/archive/    archived PRDs and specs
 ```
 
 ## Documentation
@@ -62,7 +62,7 @@ User documentation (adopting, configuring and using `teams`):
 Project documentation:
 
 - Intent: [INTENT.md](INTENT.md)
-- Requirements: [teams-cli-PRD.md](teams-cli-PRD.md)
+- Requirements: [teams-cli-PRD.md](specs/archive/261003-teams-cli/teams-cli-PRD.md)
 - Product and technical notes: [docs/](docs/): [summary](docs/product-summary.md), [details](docs/product-details.md), [technical details](docs/technical-details.md), [decisions](docs/architectural-decision-record.md), [deferred work](docs/deferred.md), [unverified assumptions](docs/unverified-assumptions.md)
 - Contributor and agent rules: [AGENTS.md](AGENTS.md)
 
