@@ -2,7 +2,7 @@
 
 `teams` is a Go CLI that lets AI agents talk to people in Microsoft Teams: post updates and alerts, read direct messages and @mentions, and reply in threads.
 
-**Status: built and tested against fakes; not usable end to end yet.** The commands, policy engine, idempotency ledger and at-least-once inbox are implemented. The `agent-okta-d` client adapter has not been released, so every command that needs a Microsoft Graph token exits with code 3 until it is. All Microsoft Graph behavior is unverified against a real tenant. There is no tagged release; build from source.
+**Status: built; the daemon connection is wired, Graph behavior is unverified.** The commands, policy engine, idempotency ledger and at-least-once inbox are implemented, and tokens come from a running `agent-okta-d` through core's `auth/oktad` adapter (tested against its fake daemon). Nothing has run against a real Microsoft 365 tenant, so all Graph behavior is unverified. There is no tagged release; build from source.
 
 Purpose, wider context and scope: see [INTENT.md](INTENT.md).
 
@@ -31,7 +31,7 @@ Part of the set rooted at [stainedhead/agentic-teams](https://github.com/stained
 
 - [agent-okta-d](https://github.com/stainedhead/agent-okta-d): the daemon that holds credentials and serves tokens, including the `msgraph` provider this CLI uses.
 - [snow-cli](https://github.com/stainedhead/snow-cli): sibling CLI; the shared core originated in its PRD section 5.
-- [agent-cli-core](https://github.com/stainedhead/agent-cli-core): the shared Go library (daemon client wrapper, policy, envelope, bounds, audit, untrusted marking, exit codes) that `teams` builds on. It is a build dependency in its own repository; `teams` pins the released tag v0.1.0.
+- [agent-cli-core](https://github.com/stainedhead/agent-cli-core): the shared Go library (daemon client wrapper, policy, envelope, bounds, audit, untrusted marking, exit codes) that `teams` builds on. It is a build dependency in its own repository; `teams` pins the released tag v0.2.1.
 - [outlook-cli](https://github.com/stainedhead/outlook-cli): sibling CLI sharing the `msgraph` provider and the AUTH-1..4 requirements.
 - [teams-cli](https://github.com/stainedhead/teams-cli): this repository.
 - [agentic-team-w-paperclip](https://github.com/stainedhead/agentic-team-w-paperclip): a companion repository in the same set.

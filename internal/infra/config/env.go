@@ -14,7 +14,6 @@ const (
 	EnvStateDir = "TEAMS_STATE_DIR"
 	EnvAgentID  = "AGENT_ID"
 	EnvRunID    = "AGENT_RUN_ID"
-	EnvSocket   = "AGENT_OKTA_D_SOCKET"
 	// EnvPolicyInsecure is honored only by a teamsdev build (policyfile).
 	EnvPolicyInsecure = "TEAMS_POLICY_INSECURE"
 )
@@ -23,8 +22,6 @@ const (
 const (
 	DefaultPolicyPath = "/etc/agent-cli/teams.policy.yaml"
 	DefaultStateDir   = "/var/lib/agent-cli/teams"
-	// DefaultSocket is unverified (UA-22).
-	DefaultSocket = "/run/agent-okta-d/agent-okta-d.sock"
 )
 
 // Env is the resolved process environment.
@@ -35,7 +32,6 @@ type Env struct {
 	StateDirOverride string
 	AgentID          string
 	RunID            string
-	Socket           string
 }
 
 // FromEnv resolves the environment through getenv (os.Getenv in production).
@@ -52,7 +48,6 @@ func FromEnv(getenv func(string) string) Env {
 		StateDirOverride: get(EnvStateDir, ""),
 		AgentID:          get(EnvAgentID, ""),
 		RunID:            get(EnvRunID, ""),
-		Socket:           get(EnvSocket, DefaultSocket),
 	}
 	if e.RunID == "" {
 		e.RunID = NewRunID()

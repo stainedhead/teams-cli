@@ -20,7 +20,20 @@ const (
 	ModPath  = "github.com/stainedhead/teams-cli"
 	CorePath = "github.com/stainedhead/agent-cli-core"
 	YAMLPath = "github.com/goccy/go-yaml"
+	// OktaPath is the credential daemon module. Production code reaches it
+	// only through core's auth/oktad adapter; the one direct import allowed is
+	// the clienttest fake daemon, from cmd/teams tests.
+	OktaPath = "github.com/stainedhead/agent-okta-d"
+	// OktaFake is the fake daemon package cmd/teams tests may import.
+	OktaFake = OktaPath + "/pkg/client/clienttest"
 )
+
+// isOktaFakeUse reports whether file may import imp: the clienttest fake from
+// a _test.go file directly in cmd/teams.
+func isOktaFakeUse(root, file, imp string) bool {
+	r := filepath.ToSlash(rel(root, file))
+	return imp == OktaFake && strings.HasPrefix(r, "cmd/teams/") && strings.HasSuffix(r, "_test.go")
+}
 
 type layer struct {
 	dir        string
@@ -46,6 +59,9 @@ func CheckImports(root string) []string {
 	for _, l := range layers {
 		walkGo(root, filepath.Join(root, l.dir), func(file string, imports []string) {
 			for _, imp := range imports {
+				if isOktaFakeUse(root, file, imp) {
+					continue
+				}
 				if msg := violation(l, imp); msg != "" {
 					out = append(out, fmt.Sprintf("%s imports %s: %s", rel(root, file), imp, msg))
 				}
@@ -68,11 +84,11 @@ func CheckImports(root string) []string {
 			}
 		})
 	}
-	// Nothing under internal imports cmd; nothing imports agent-okta-d.
+	// Nothing under internal imports cmd; agent-okta-d is imported only by the clienttest rule.
 	walkGo(root, root, func(file string, imports []string) {
 		for _, imp := range imports {
-			if strings.Contains(imp, "agent-okta-d") {
-				out = append(out, fmt.Sprintf("%s imports %s: agent-okta-d must not be a dependency", rel(root, file), imp))
+			if strings.Contains(imp, "agent-okta-d") && !isOktaFakeUse(root, file, imp) {
+				out = append(out, fmt.Sprintf("%s imports %s: use core's auth/oktad; only cmd/teams tests may import clienttest", rel(root, file), imp))
 			}
 			if strings.HasPrefix(rel(root, file), "internal"+string(filepath.Separator)) && strings.HasPrefix(imp, ModPath+"/cmd") {
 				out = append(out, fmt.Sprintf("%s imports %s: internal packages must not import cmd", rel(root, file), imp))
@@ -140,11 +156,10 @@ func CheckGoMod(path string) []string {
 			if len(mod) == 0 {
 				continue
 			}
-			if mod[0] != CorePath && mod[0] != YAMLPath {
+			// agent-okta-d is required because core's oktad adapter depends
+			// on it (and tests use its clienttest); imports are policed above.
+			if mod[0] != CorePath && mod[0] != YAMLPath && mod[0] != OktaPath {
 				out = append(out, "go.mod requires a module outside the allowlist: "+mod[0])
-			}
-			if strings.Contains(mod[0], "agent-okta-d") {
-				out = append(out, "go.mod requires agent-okta-d")
 			}
 		}
 	}

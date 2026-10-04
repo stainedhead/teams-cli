@@ -9,7 +9,7 @@ func env(m map[string]string) func(string) string { return func(k string) string
 
 func TestFromEnvDefaults(t *testing.T) {
 	e := FromEnv(env(nil))
-	if e.PolicyPath != DefaultPolicyPath || e.Socket != DefaultSocket || e.AgentID != "" || e.StateDirOverride != "" {
+	if e.PolicyPath != DefaultPolicyPath || e.AgentID != "" || e.StateDirOverride != "" {
 		t.Fatalf("defaults: %+v", e)
 	}
 	if !regexp.MustCompile(`^[0-9a-f]{16}$`).MatchString(e.RunID) {
@@ -22,9 +22,9 @@ func TestFromEnvDefaults(t *testing.T) {
 
 func TestFromEnvOverrides(t *testing.T) {
 	e := FromEnv(env(map[string]string{
-		EnvPolicy: " /tmp/p.yaml ", EnvStateDir: "/tmp/s", EnvAgentID: "a1", EnvRunID: "r1", EnvSocket: "/tmp/x.sock",
+		EnvPolicy: " /tmp/p.yaml ", EnvStateDir: "/tmp/s", EnvAgentID: "a1", EnvRunID: "r1",
 	}))
-	want := Env{"/tmp/p.yaml", "/tmp/s", "a1", "r1", "/tmp/x.sock"}
+	want := Env{"/tmp/p.yaml", "/tmp/s", "a1", "r1"}
 	if e != want {
 		t.Fatalf("got %+v", e)
 	}

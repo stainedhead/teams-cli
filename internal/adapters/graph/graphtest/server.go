@@ -94,6 +94,7 @@ type Server struct {
 	reqs        []Request
 	unauth      int
 	noAuth      bool // allow requests without Authorization
+	auths       []string
 	pageSize    int
 	deltaStatus int // when non-zero, delta routes answer with it
 	createStat  int // when non-zero, POST /chats answers with it
@@ -146,6 +147,15 @@ func (s *Server) DisableDelta(status int) { s.mu.Lock(); s.deltaStatus = status;
 
 // FailChatCreate makes POST /chats answer with status.
 func (s *Server) FailChatCreate(status int) { s.mu.Lock(); s.createStat = status; s.mu.Unlock() }
+
+// Authorizations returns the Authorization header value of every request, in
+// order, for tests that assert which credential reached Graph. Requests record
+// it only here, never in Request.
+func (s *Server) Authorizations() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.auths...)
+}
 
 // AllowNoAuth stops the 401 answer for requests without Authorization.
 func (s *Server) AllowNoAuth() { s.mu.Lock(); s.noAuth = true; s.mu.Unlock() }
@@ -264,6 +274,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	hdr.Del("Authorization")
 
 	s.mu.Lock()
+	s.auths = append(s.auths, r.Header.Get("Authorization"))
 	s.reqs = append(s.reqs, Request{Method: r.Method, Path: path, RawQuery: r.URL.RawQuery,
 		HasAuth: r.Header.Get("Authorization") != "", Header: hdr, Body: string(body)})
 	if s.unauth > 0 {

@@ -4,11 +4,11 @@ Describes the implementation as built. Design rationale is in `architectural-dec
 
 ## Layers
 
-Clean Architecture; dependencies point inward and `internal/archtest` enforces the rules (including the dependency allow-list: only `agent-cli-core` v0.1.0 and `goccy/go-yaml` v1.19.2, no `replace`, `agent-okta-d` never imported).
+Clean Architecture; dependencies point inward and `internal/archtest` enforces the rules (including the dependency allow-list: only `agent-cli-core` v0.2.1 and `goccy/go-yaml` v1.19.2, no `replace`, `agent-okta-d` never imported).
 
 | Layer | Path | Role |
 |---|---|---|
-| Entry | `cmd/teams` | `main.go` (signal context, exit code, build stamp), `app.go` (`assemble()` composition root), `daemon.go` (`newDaemonClient()` stub), `usecase_wire.go` |
+| Entry | `cmd/teams` | `main.go` (signal context, exit code, build stamp), `app.go` (`assemble()` composition root), `daemon.go` (`newDaemonClient()`, core's oktad adapter), `usecase_wire.go` |
 | Adapters | `internal/adapters/{cli,graph,state,policyfile,auditlog,selftestcfg}` | I/O. `graph/graphtest` is the `httptest` fake Graph used by tests |
 | Infrastructure | `internal/infra/{clock,fstrust,config}` | System clock, filesystem trust check, environment and defaults |
 | Use cases | `internal/usecase` | `Commands` facade (`Whoami`, `Destinations`, `Send`, `Reply`, `Inbox`, `Ack`, `ThreadGet`, `Selftest`), ports in `ports.go`, fakes in `usecasetest` |
@@ -16,11 +16,11 @@ Clean Architecture; dependencies point inward and `internal/archtest` enforces t
 
 ## Core integration
 
-`agent-cli-core` v0.1.0 supplies the output envelope and exit codes (`output`), token handling (`auth`: `NewDaemonTokenSource` for provider `msgraph`, `NewAuthorizer`), HTTP with retry and host allow-list (`httpx`, only `graph.microsoft.com`), audit (`audit`), the selftest runner and skill generation (`docgen`). The core `policy` package is not used (ADR-2). Gaps and workarounds: `requested-core-changes.md`.
+`agent-cli-core` v0.2.1 supplies the output envelope and exit codes (`output`), token handling (`auth`: `NewDaemonTokenSource` for provider `msgraph`, `NewAuthorizer`), HTTP with retry and host allow-list (`httpx`, only `graph.microsoft.com`), audit (`audit`), the selftest runner and skill generation (`docgen`). The core `policy` package is not used (ADR-2). Gaps and workarounds: `requested-core-changes.md`.
 
 ## Token path
 
-`newDaemonClient()` is the single seam to the credential daemon. It currently returns a stub whose `Fetch` and `Refresh` return `*auth.UnreachableError`, so network commands exit 3 (`adr-daemon-client-stub.md`). Tests substitute `auth/authtest.Fake`. The Authorizer attaches the bearer header; adapters never see the token. One forced refresh on 401, then exit 3.
+`newDaemonClient()` is the single seam to the credential daemon. It returns core's `auth/oktad` adapter (10 s timeout; socket `AGENT_OKTA_D_SOCKET`, else the adapter default), see `adr-daemon-adapter-wired.md`. `DaemonTokenSource` result is used directly: unreachable, re-enrollment, revoked and not-configured exit 3, degraded or retry-hinted exit 8, a cancelled context exit 1. Unit tests substitute `auth/authtest.Fake`; end-to-end tests use `agent-okta-d`'s `clienttest` fake on a real unix socket. The Authorizer attaches the bearer header; adapters never see the token. One forced refresh on 401, then exit 3.
 
 ## Graph client
 
