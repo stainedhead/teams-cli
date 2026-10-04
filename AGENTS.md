@@ -4,7 +4,7 @@ Rules for AI agents and human contributors working in this repository.
 
 ## Project summary
 
-`teams-cli` builds the `teams` binary: a Go CLI that lets AI agents post to and read Microsoft Teams as their own named Entra user. It calls Microsoft Graph with delegated permissions (application-only permissions cannot send chat messages), obtains short-lived Graph tokens from the `agent-okta-d` daemon (provider `msgraph`), enforces a client-side policy (destinations, senders, rates, content filters), and polls for inbound messages because no public endpoint is hosted. Full requirements: `teams-cli-PRD.md` (Draft v0.2). Shared behavior comes from [`agent-cli-core`](https://github.com/stainedhead/agent-cli-core), a separate repository and build dependency. Status: Phase F foundation in place (types, ports, archtest, stubs); feature work in progress.
+`teams-cli` builds the `teams` binary: a Go CLI that lets AI agents post to and read Microsoft Teams as their own named Entra user. It calls Microsoft Graph with delegated permissions (application-only permissions cannot send chat messages), obtains short-lived Graph tokens from the `agent-okta-d` daemon (provider `msgraph`), enforces a client-side policy (destinations, senders, rates, content filters), and polls for inbound messages because no public endpoint is hosted. Requirements and decisions: `docs/product-details.md` and `docs/architectural-decision-record.md`; the PRD and specs are under `specs/archive/`. Shared behavior comes from [`agent-cli-core`](https://github.com/stainedhead/agent-cli-core), a separate repository and build dependency. Status: implemented and tested against fakes; the `agent-okta-d` client adapter is not yet released, so Graph-backed commands exit 3 until it is. See `docs/deferred.md`.
 
 ## Layout (planned; see README.md)
 
@@ -14,7 +14,7 @@ Rules for AI agents and human contributors working in this repository.
 - `docs/` - product and technical documentation (product-summary, product-details, technical-details, architectural-decision-record).
 - `user-docs/` - end-user documentation (see rule below).
 - `specs/` - feature specs; completed specs move to `specs/archive/`.
-- `teams-cli-PRD.md` - the product requirements document; do not overwrite or rewrite it without being asked.
+- `specs/archive/261003-teams-cli/teams-cli-PRD.md` - the product requirements document; do not overwrite or rewrite it without being asked.
 
 ## Architecture and engineering standards
 
