@@ -93,8 +93,8 @@ Uses the shared CLI core, specified in `agent-cli-core-PRD.md` in [stainedhead/a
 |---|---|---|---|
 | `teams whoami` | Agent user, policy profile, allowed destinations, limits | `GET /me` | |
 | `teams destinations list` | Aliases the agent may post to or read (`channel:sdlc-alerts`, `chat:dev-team`, `user:jane.doe`) | local policy | |
-| `teams send --to <alias> (--text T \| --file F) [--thread ID] [--mention <alias>…] [--idempotency-key K] [--dry-run]` | Post a message (alias, never raw IDs) | `POST /chats/{id}/messages` or `POST /teams/{tid}/channels/{cid}/messages` | send |
-| `teams reply --thread ID --text T` | Reply in a channel thread or chat | `POST …/messages/{id}/replies` (channel) ⚠️ | send |
+| `teams send --to <alias> (--text T \| --file F) [--thread ID] [--mention <alias>…] [--idempotency-key K] [--dry-run]` | Post a message (alias, never raw IDs); `--file` reads the message *text* from a file, it is not an attachment upload (non-goal) | `POST /chats/{id}/messages` or `POST /teams/{tid}/channels/{cid}/messages` | send |
+| `teams reply --thread ID --text T` | Reply in a channel thread or chat | `POST …/messages/{id}/replies` (channel) ⚠️; chats have no reply threads, so in a chat `reply` posts a normal chat message | send |
 | `teams inbox [--wait 30] [--limit 20] [--since CURSOR]` | New messages addressed to the agent (1:1 chats, @mentions, configured watched destinations) | `GET /me/chats?...`, `GET /me/chats/{id}/messages?...`, `GET …/channels/{cid}/messages(/delta)` ⚠️ | read |
 | `teams ack <id…>` | Mark handled (advances local cursor) | local | |
 | `teams thread get <id> [--limit 20]` | Recent context in a watched thread | `GET …/messages/{id}/replies` | read |
