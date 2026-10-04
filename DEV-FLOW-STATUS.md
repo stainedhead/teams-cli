@@ -3,7 +3,7 @@
 - **PRD:** teams-cli-PRD.md
 - **Branch:** feat/teams-cli
 - **Review PRD:** teams-cli-auto-review-PRD.md
-- **Spec dir:** specs/261003-teams-cli/
+- **Spec dir:** specs/261003-teams-cli-auto-review/
 - **Started:** 2026-10-04T00:23:39Z
 
 | Step | Name | Status | Start | End | Runtime (min) |
@@ -16,7 +16,7 @@
 | 5 | Code and Design Review | ✅ Complete | 2026-10-04T01:46:00Z | 2026-10-04T02:10:00Z | 24 |
 | 6 | Prepare Review PRD | ✅ Complete | 2026-10-04T01:23:42Z | 2026-10-04T01:23:42Z | 1 |
 | 7 | Archive Original Spec | ✅ Complete | 2026-10-04T01:23:46Z | 2026-10-04T01:23:46Z | 1 |
-| 8 | Spec Review Fixes | ⬜ Pending | | | |
+| 8 | Spec Review Fixes | ✅ Complete | 2026-10-04T01:24:17Z | 2026-10-04T01:24:17Z | 1 |
 | 9 | Implement Review Fixes | ⬜ Pending | | | |
 | 10 | Archive Fixes Spec | ⬜ Pending | | | |
 | 11 | Final Quality Pass | ⬜ Pending | | | |
