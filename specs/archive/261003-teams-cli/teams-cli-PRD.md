@@ -50,7 +50,7 @@ Trade-offs accepted: inbound latency equals the polling interval; a human enroll
 | **Bot via a relay we host** | Yes | Yes | The bot | Needs a public HTTPS endpoint, a production service, and per-bot app approvals ✅ | Dropped (v0.1) |
 | **Incoming webhook / Workflows** | One-way | No | Generic poster | URL is a bearer secret; connectors are being replaced by Workflows ⚠️ | Optional P2, notification-only, no hosting needed |
 | **`m365` CLI (PnP) / `mgc`** | Depends on delegated Graph | n/a | Human | `mgc` retired 2026-08-28 ✅; `m365` stores credentials as described in `outlook-cli-PRD.md` §3 | No |
-| **Entra Agent User (Agent 365)** | Yes (delegated Graph as the agent's own user) ✅ | Yes (polling or notifications) | Person-like account ✅ | Graph beta provisioning, M365 license per agent user, Frontier preview for user-account mode ✅ | Same runtime shape as this PRD, with a better enrollment story; spike (§9) |
+| **Entra Agent User (Agent 365)** | Yes (delegated Graph as the agent's own user) ✅ | Yes (polling or notifications) | Person-like account ✅ | Graph beta provisioning, M365 license per agent user, Frontier preview for user-account mode ✅ | Same runtime shape as this PRD, with a better enrollment story; spike (§11) |
 
 The chosen design and the Agent User design differ only in how the daemon obtains the agent user's token (human-enrolled refresh token vs. Microsoft's federated `user_fic` chain). The `teams` CLI is identical for both.
 
@@ -93,12 +93,13 @@ Uses the shared CLI core, specified in `agent-cli-core-PRD.md` in [stainedhead/a
 |---|---|---|---|
 | `teams whoami` | Agent user, policy profile, allowed destinations, limits | `GET /me` | |
 | `teams destinations list` | Aliases the agent may post to or read (`channel:sdlc-alerts`, `chat:dev-team`, `user:jane.doe`) | local policy | |
-| `teams send --to <alias> (--text T \| --file F) [--thread ID] [--mention <alias>…] [--idempotency-key K] [--dry-run]` | Post a message (alias, never raw IDs) | `POST /chats/{id}/messages` or `POST /teams/{tid}/channels/{cid}/messages` | send |
-| `teams reply --thread ID --text T` | Reply in a channel thread or chat | `POST …/messages/{id}/replies` (channel) ⚠️ | send |
+| `teams send --to <alias> (--text T \| --file F) [--thread ID] [--mention <alias>…] [--idempotency-key K] [--dry-run]` | Post a message (alias, never raw IDs); `--file` reads the message *text* from a file, it is not an attachment upload (non-goal) | `POST /chats/{id}/messages` or `POST /teams/{tid}/channels/{cid}/messages` | send |
+| `teams reply --thread ID --text T` | Reply in a channel thread or chat | `POST …/messages/{id}/replies` (channel) ⚠️; chats have no reply threads, so in a chat `reply` posts a normal chat message | send |
 | `teams inbox [--wait 30] [--limit 20] [--since CURSOR]` | New messages addressed to the agent (1:1 chats, @mentions, configured watched destinations) | `GET /me/chats?...`, `GET /me/chats/{id}/messages?...`, `GET …/channels/{cid}/messages(/delta)` ⚠️ | read |
 | `teams ack <id…>` | Mark handled (advances local cursor) | local | |
 | `teams thread get <id> [--limit 20]` | Recent context in a watched thread | `GET …/messages/{id}/replies` | read |
 | `teams selftest` | Allow/deny matrix (§10) | various | |
+| `teams version` | Semver, commit, build date (REL-4) | local | |
 
 **Polling behavior.** `inbox --wait N` loops until a message arrives or `N` seconds pass, polling every `poll_interval` (default 15 s, minimum 5 s) with jittered back-off on 429 (`Retry-After` honored). Chats are discovered with `GET /me/chats` sorted by last activity ⚠️, then only chats with new activity are read; channels use the channel messages delta endpoint where available ⚠️. A per-destination cursor (`lastModifiedDateTime` or delta token) lives in a state file under the agent's state directory; losing it causes a bounded re-read (`max_lookback`), de-duplicated by message id. Messages authored by the agent itself are never returned.
 

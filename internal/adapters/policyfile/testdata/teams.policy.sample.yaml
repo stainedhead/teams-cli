@@ -1,0 +1,76 @@
+# teams CLI policy (sample). All identifiers below are placeholders: replace
+# every GUID, team, channel and chat id with values from your own tenant.
+#
+# Install as root so the agent cannot edit its own guardrails, for example:
+#   sudo install -d -o root -m 0755 /etc/agent-cli
+#   sudo install -o root -m 0644 teams.policy.sample.yaml /etc/agent-cli/teams.policy.yaml
+version: 1
+profile: agent
+# Checked against GET /me before any other Graph call; a mismatch exits 6.
+upn: sdlc-reviewer-01@corp.example.com
+# Optional tenant GUID: senders from another tenant never instruct the agent.
+tenant_id: 11111111-1111-1111-1111-111111111111
+# Persistent volume for the ledger and cursors; TEAMS_STATE_DIR overrides it.
+state_dir: /var/lib/agent-cli/teams
+
+destinations:
+  channel:sdlc-alerts:
+    team_id: 22222222-2222-2222-2222-222222222222
+    channel_id: "19:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@thread.tacv2"
+    send: true
+    watch: true
+  chat:dev-team:
+    chat_id: "19:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@thread.v2"
+    send: true
+    watch: true
+  user:jane.doe:
+    aad_id: 33333333-3333-3333-3333-333333333333
+    display_name: Jane Doe
+    send: true
+    watch: true
+    create_chat: false
+
+instruct:
+  commanders:
+    aad_ids:
+      - 33333333-3333-3333-3333-333333333333
+  agents:
+    aad_ids:
+      - 44444444-4444-4444-4444-444444444444
+
+inbound:
+  handle: [direct, mentions, watched]
+  max_lookback: 30m   # cap 24h
+  poll_interval: 15s  # floor 5s
+  max_wait: 120s
+  thread_poll_max: 5
+
+send:
+  max_bytes: 8000
+  mentions:
+    allow: [user:jane.doe]
+    block_broadcast: true  # must be true in v1
+    max: 5
+  content_filters: [secret_patterns, classification_markers]
+  classification_markers: ["CONFIDENTIAL", "INTERNAL ONLY"]
+  link_allowlist: []
+  rate:
+    per_minute: 10
+    per_hour: 100
+  reply_depth_max: 6
+  reply_window: 24h
+  prefix: ""
+  marker_scan: false
+
+limits:
+  max_results: 50
+  max_writes_per_run: 30
+  max_chat_scan: 50
+
+audit:
+  path: /var/log/agent-cli/teams.audit.jsonl
+
+# Optional: a chat the agent is NOT a member of; selftest expects Graph to
+# refuse it (403 or 404).
+selftest:
+  non_member_chat_id: "19:cccccccccccccccccccccccccccccccc@thread.v2"
