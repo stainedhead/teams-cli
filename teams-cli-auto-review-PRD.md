@@ -111,3 +111,34 @@ Acceptance criteria:
 ## 4. Verification performed
 
 `go build ./...`, `go vet ./...`, `go vet -tags teamsdev ./...`, `golangci-lint run` (0 issues), `gofmt -l .` (clean), `go test -race -count=1 -cover ./...` (all pass). Code read: usecase (send, inbox, ack, thread, service, selftest), domain (policy_eval, mention, classify, validate, ratelimit, loopguard, cursor), graph (client, errors, post, messages), policyfile loader, fstrust, state store and ledger, auditlog sink, cli router/flags/presenters, cmd/teams wiring, CI workflow, spec FR table. No real-tenant behavior was or could be verified.
+
+## 5. Implementation guidance (required process for fixing these findings)
+
+- **TDD:** for every FR-R*, write the failing test named in its acceptance criteria first, watch it fail for the stated reason, then implement the minimum fix, then refactor. No fix lands without its test.
+- **Per-fix code review:** each FR-R* is one commit (or one small PR-sized change) and gets its own review pass (`dev-flow:review-code` or a reviewer agent teammate) before the next fix builds on it. Security-relevant fixes (FR-R1, R5, R6) get a second look at the threat model, not only the diff.
+- **Agent teammates:** use one teammate per workstream (see below) and a separate reviewer teammate that did not write the fix. The lead integrates, resolves conflicts and runs the full suite.
+- **Git worktrees for parallel workstreams:** independent fixes run in separate worktrees (`git worktree add .worktrees/<ws> -b fix/<ws>`) branched from feat/teams-cli, merged back one at a time with `go test -race ./...`, `go vet`, `golangci-lint` green after each merge. Suggested streams: A (policy/identity and audit: FR-R1, R5, R7; touches config, service.go, auditlog), B (inbox: FR-R2), C (presenters and output: FR-R3, R6), D (send ledger atomicity: FR-R4, after A merges because both touch send/service), E (CI and docs: FR-R8, R9). Streams A and D must not run concurrently on `internal/usecase/send.go` and `service.go`.
+
+## 6. Priorities and ordering
+
+P0: none (verified: nothing blocks building, testing or the documented stub-mode use). P1 (fix before merge): FR-R1 (policy bypass), FR-R2 (silent message loss), FR-R3 (spec deviation in user-visible output). P2 (fix in this pass if time allows, else record in `docs/deferred.md` with owner): FR-R4 to FR-R9. FR-R8 first CI run failure is a merge-process risk but not a code defect, hence P2.
+
+Definition of done for the whole pass: all P1 criteria met; each P2 either met or explicitly deferred; `go build`, `go vet` (with and without `-tags teamsdev`), `golangci-lint`, `gofmt`, `go test -race -count=1 ./...` clean; coverage of logic packages not below the pre-fix level.
+
+## 7. Non-functional requirements for the fixes
+
+- Security: no fix may widen what the agent controls (env, state files); fixes fail closed.
+- Reliability: ledger and cursor changes preserve crash safety (atomic writes, lock ordering) and need a concurrency test run under `-race`.
+- Performance: inbox change must keep one bounded page per poll (page size configurable, default unchanged).
+- Observability: new conditions (truncated poll, unaudited delivered send, spoofed agent id) appear in audit extras and never include message text or tokens.
+- Compatibility: output schema changes (whoami, destinations, dry-run, links) are additive; goldens updated deliberately.
+
+## 8. Dependencies and open questions
+
+Dependencies: `agent-cli-core` (output.Untrusted, auth fakes), GitHub Actions secret or repo access for private module fetch (FR-R8), the real daemon client (FR-R9, out of scope here).
+
+Open questions:
+1. FR-R1: should `TEAMS_STATE_DIR` remain honored only in `teamsdev` builds, or when policy leaves `state_dir` empty? Default decision: policy wins; env only when policy empty.
+2. FR-R2: ascending fetch from the watermark vs truncation detection? Default: truncation detection with no watermark advance past the oldest undelivered message, unless Graph ordering allows ascending (UA to verify).
+3. FR-R8: dependency auth by deploy key or fine-grained PAT? Needs repo-admin decision.
+4. FR-R5: intent record before POST vs audit-sink availability probe? Default: intent record.
