@@ -74,3 +74,7 @@ make build   # bin/teams
 make skill   # dist/teams-cli.md, the generated agent skill
 make cross   # darwin/arm64, linux/amd64, linux/arm64
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
