@@ -4,7 +4,7 @@ Rules for AI agents and human contributors working in this repository.
 
 ## Project summary
 
-`teams-cli` builds the `teams` binary: a Go CLI that lets AI agents post to and read Microsoft Teams as their own named Entra user. It calls Microsoft Graph with delegated permissions (application-only permissions cannot send chat messages), obtains short-lived Graph tokens from the `agent-okta-d` daemon (provider `msgraph`), enforces a client-side policy (destinations, senders, rates, content filters), and polls for inbound messages because no public endpoint is hosted. Full requirements: `teams-cli-PRD.md` (Draft v0.2). Shared behavior comes from [`agent-cli-core`](https://github.com/stainedhead/agent-cli-core), a separate repository and build dependency. Status: no implementation yet.
+`teams-cli` builds the `teams` binary: a Go CLI that lets AI agents post to and read Microsoft Teams as their own named Entra user. It calls Microsoft Graph with delegated permissions (application-only permissions cannot send chat messages), obtains short-lived Graph tokens from the `agent-okta-d` daemon (provider `msgraph`), enforces a client-side policy (destinations, senders, rates, content filters), and polls for inbound messages because no public endpoint is hosted. Full requirements: `teams-cli-PRD.md` (Draft v0.2). Shared behavior comes from [`agent-cli-core`](https://github.com/stainedhead/agent-cli-core), a separate repository and build dependency. Status: Phase F foundation in place (types, ports, archtest, stubs); feature work in progress.
 
 ## Layout (planned; see README.md)
 
@@ -32,16 +32,16 @@ Run before every commit and fix all findings:
 gofmt -l .
 go vet ./...
 golangci-lint run
-go test ./...
+go test -race ./...
 ```
 
-`make fmt lint test` runs the same checks.
+`make check` (fmt-check, vet, lint, race) runs the same checks.
 
 ## Dependency on agent-cli-core
 
 - Changes to shared behavior (envelope, exit codes, bounds, policy engine, audit, daemon-client wrapper) are made in [agent-cli-core](https://github.com/stainedhead/agent-cli-core), never copied into this repository.
 - Depend on released tags only: no pseudo-versions, no `replace` directives on `main`.
-- Do NOT add a `require` for agent-cli-core to `go.mod` yet: no release exists. Add it once the core has a tagged release (see PRD section 16.6).
+- `go.mod` requires `agent-cli-core v0.1.0` (and `goccy/go-yaml`); bumps are ordinary PRs. No `replace` directive, ever. Set `GOPRIVATE=github.com/stainedhead/*` to fetch it.
 
 ## `user-docs/` rule
 

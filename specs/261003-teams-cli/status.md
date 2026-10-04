@@ -4,7 +4,7 @@
 | Phase | Status |
 |---|---|
 | Phase 0: Spec & Research | In Progress (spec reviewed and made implementation-ready 2026-10-04; closes when step 2 of dev-flow commits) |
-| Phase F: Foundation (types, ports, archtest) | Not Started |
+| Phase F: Foundation (types, ports, archtest) | Complete (F1-F7, 2026-10-04) |
 | Phase P: Parallel build (WS-A domain, WS-B use cases, WS-C graph, WS-D state+policy+audit, WS-E cli+composition, WS-F docs+CI) | Not Started |
 | Phase I: Integration and hardening | Not Started |
 
@@ -36,3 +36,4 @@ Verdict: implementation-ready. Residual risk: all Graph shapes unverified (M0 de
 ## Recent Activity
 - 2026-10-03: Spec directory created; PRD moved in.
 - 2026-10-04: Spec, architecture, data dictionary, research, plan, tasks rewritten implementation-ready; review verdict recorded.
+- 2026-10-04: Phase F done: go.mod (core v0.1.0, go-yaml), Makefile, domain types/errors/stubs, usecase ports + usecasetest skeleton, archtest, directory skeleton.

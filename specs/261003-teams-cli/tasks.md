@@ -1,5 +1,5 @@
 # Tasks: teams-cli
-**Date:** 2026-10-04 | **Status:** Ready to implement | 0/64 tasks complete
+**Date:** 2026-10-04 | **Status:** Ready to implement | 7/64 tasks complete
 
 Every task is TDD: write the failing test named in "Test first", make it pass, refactor, run `gofmt -l .`, `go vet ./...`, `golangci-lint run`, `go test -race ./...` on the owned packages. Milestone tags M1/M2/M3 = spec/PRD milestone. FR/AC references point to spec.md.
 
@@ -57,13 +57,13 @@ func ValidateText(p Policy, text string) error; func ValidateKey(k string) error
 ```
 
 ## Phase F: Foundation (serial)
-- [ ] **F1** go.mod: `require github.com/stainedhead/agent-cli-core v0.1.0` and `github.com/goccy/go-yaml v1.19.2`; no replace; AGENTS.md rule "do not add a require yet" replaced by "core v0.1.0 required; bumps are ordinary PRs"; Makefile targets `build race cover cross skill`. Test first: `go mod tidy` leaves no diff; `go list -m all` shows no `agent-okta-d`. (FR-32, D11)
-- [ ] **F2** `internal/domain/types.go`, `errors.go`: all data-dictionary entities/enums; `domain.Error{Category,Message,Hint}` (+ `NewUsage/Validation/PolicyDenied/Conflict/NotFound/NotSent`, `IsNotSent`). Test first: each constructor maps to the expected `output.ExitOf` code per spec D9. (FR-29)
-- [ ] **F3** Domain function stubs (signatures above) returning zero values; compile only.
-- [ ] **F4** `internal/usecase/ports.go`: ports of architecture s4, `Commands` interface, DTOs. Test first: compile-time assertions that `usecasetest` fakes satisfy every port.
-- [ ] **F5** `internal/usecase/usecasetest/`: in-memory fakes skeletons (Graph with scripted responses, Ledger, CursorStore, PolicyProvider, AuditSink recorder, fake clock/rand).
-- [ ] **F6** `internal/archtest`: import-graph, allowed third-party modules (core, go-yaml), no `replace`, no `agent-okta-d`, no core `auth|httpx|audit|selftest|docgen` import outside `cmd/teams` and `adapters/*`. Test first: a deliberately bad fixture fails the check.
-- [ ] **F7** Directory skeleton with `doc.go` per package; CI passes on empty implementation.
+- [x] **F1** go.mod: `require github.com/stainedhead/agent-cli-core v0.1.0` and `github.com/goccy/go-yaml v1.19.2`; no replace; AGENTS.md rule "do not add a require yet" replaced by "core v0.1.0 required; bumps are ordinary PRs"; Makefile targets `build race cover cross skill`. Test first: `go mod tidy` leaves no diff; `go list -m all` shows no `agent-okta-d`. (FR-32, D11)
+- [x] **F2** `internal/domain/types.go`, `errors.go`: all data-dictionary entities/enums; `domain.Error{Category,Message,Hint}` (+ `NewUsage/Validation/PolicyDenied/Conflict/NotFound/NotSent`, `IsNotSent`). Test first: each constructor maps to the expected `output.ExitOf` code per spec D9. (FR-29)
+- [x] **F3** Domain function stubs (signatures above) returning zero values; compile only.
+- [x] **F4** `internal/usecase/ports.go`: ports of architecture s4, `Commands` interface, DTOs. Test first: compile-time assertions that `usecasetest` fakes satisfy every port.
+- [x] **F5** `internal/usecase/usecasetest/`: in-memory fakes skeletons (Graph with scripted responses, Ledger, CursorStore, PolicyProvider, AuditSink recorder, fake clock/rand).
+- [x] **F6** `internal/archtest`: import-graph, allowed third-party modules (core, go-yaml), no `replace`, no `agent-okta-d`, no core `auth|httpx|audit|selftest|docgen` import outside `cmd/teams` and `adapters/*`. Test first: a deliberately bad fixture fails the check.
+- [x] **F7** Directory skeleton with `doc.go` per package; CI passes on empty implementation.
 
 ## WS-A: Domain (internal/domain)
 - [ ] **A1** (M1) Alias parsing: table of >= 15 valid/invalid inputs incl. `19:abc@thread.v2`, GUID, uppercase, empty, 65-char names. (FR-3, AC-3)
