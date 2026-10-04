@@ -9,7 +9,8 @@ Decisions are numbered ADR-n. Each lists context, decision and consequences. Sou
 | ADR-3 | At-least-once inbox with explicit ack | Accepted |
 | ADR-4 | Drop inbound messages from unlisted conversations | Accepted |
 | ADR-5 | Policy-only mentions | Accepted |
-| ADR-6 | Daemon client stub | Accepted (temporary) |
+| ADR-6 | Daemon client stub | Superseded by ADR-6a |
+| ADR-6a | Daemon adapter wired | Accepted |
 | ADR-7 | Standard-library `flag` CLI | Accepted |
 | ADR-8 | Ledger fails closed, cursors fail open | Accepted |
 | ADR-9 | Poll only listed destinations (no chat discovery) | Accepted |
@@ -78,7 +79,7 @@ Source: spec D5
 
 ## ADR-6: Daemon client stub
 
-Status: Accepted (temporary)
+Status: Superseded by ADR-6a
 
 Context: `agent-okta-d` has not published `pkg/client` and must not be a dependency of this module.
 
@@ -87,6 +88,16 @@ Decision: `newDaemonClient()` returns a stub that fails with `*auth.UnreachableE
 Consequences: Replacing the stub is a one-function change. No command reaches Graph until then. Tracked in `deferred.md`.
 
 Source: spec D10
+
+## ADR-6a: Daemon adapter wired
+
+Status: Accepted (supersedes ADR-6)
+
+Context: `agent-cli-core` v0.2.1 provides `auth/oktad`, the `auth.DaemonClient` over the `agent-okta-d` socket.
+
+Decision: `newDaemonClient()` returns `oktad.New` with a 10 s timeout; socket from `AGENT_OKTA_D_SOCKET`, else the adapter default. Full text in `adr-daemon-adapter-wired.md`.
+
+Consequences: Graph-backed commands reach a real daemon. Degraded daemon exits 8, unreachable or not enrolled exits 3. Socket ownership check still deferred.
 
 ## ADR-7: Standard-library `flag` CLI
 

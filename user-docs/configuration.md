@@ -8,7 +8,7 @@ All behavior limits live in one YAML policy file. A starting point is [teams.pol
 |---|---|---|
 | `TEAMS_POLICY` | `/etc/agent-cli/teams.policy.yaml` | Path to the policy file |
 | `TEAMS_STATE_DIR` | none | State directory, used only when the policy does not set `state_dir`. A `state_dir` in the policy always wins |
-| `AGENT_OKTA_D_SOCKET` | `/run/agent-okta-d/agent-okta-d.sock` (assumed) | Daemon unix socket |
+| `AGENT_OKTA_D_SOCKET` | `/var/run/agentd/agentd.sock` (macOS), `/run/agentd/agentd.sock` (Linux); the daemon client's default, unverified | Daemon unix socket. There is no policy-file setting for it. Exit 3 means the daemon is unreachable or needs a human to enroll; exit 8 means it is degraded or asked for a retry |
 | `AGENT_ID` | the policy `profile` | Does not change the audit identity, which is always the policy `profile`. A different value is recorded in the audit line as `claimed_agent=<id>` |
 | `AGENT_RUN_ID` | random per run | Optional run identifier recorded in audit lines |
 

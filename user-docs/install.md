@@ -35,9 +35,9 @@ Install the binary somewhere on the agent's `PATH`, for example `/usr/local/bin/
 | Policy file | `/etc/agent-cli/teams.policy.yaml` | `TEAMS_POLICY` | root, not writable by the agent |
 | State directory | `/var/lib/agent-cli/teams` | `state_dir` in policy (`TEAMS_STATE_DIR` only if the policy omits it) | the agent user, mode 0700 |
 | Audit log | set by `audit.path` in policy | none | the agent user can append; mode 0600 |
-| Daemon socket | `/run/agent-okta-d/agent-okta-d.sock` | `AGENT_OKTA_D_SOCKET` | the daemon |
+| Daemon socket | `/var/run/agentd/agentd.sock` (macOS), `/run/agentd/agentd.sock` (Linux) | `AGENT_OKTA_D_SOCKET` | the daemon |
 
-The default daemon socket path is an assumption and may differ in your deployment; set `AGENT_OKTA_D_SOCKET` if so.
+The default daemon socket path is the daemon client's default and unverified and may differ in your deployment; set `AGENT_OKTA_D_SOCKET` if so.
 
 Install the policy as root so the agent cannot edit its own guardrails:
 

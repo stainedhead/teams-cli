@@ -11,7 +11,7 @@ Gaps found while building `teams` against `agent-cli-core v0.1.0`. The core is n
 | 5 | `output` | `Meta` has `next_offset` (item index) but no continuation token. Graph paging and the channel delta link use opaque tokens. | Return `next_page_token` inside `data`. A `Meta.next_page_token string` would remove this. | Medium |
 | 6 | `output` | `Untrusted` marshals as `{"untrusted":true,"value":...,"author":...,"timestamp":...}`, which differs from the PRD sketch, and bounding cannot cut an object (`ErrBoundTooSmall`). | Use `output.Untrusted` for message text and `sender.name` (spec D13); the shape is noted in the generated skill. List commands emit `data` as an array so bounding can cut it. | Low |
 | 7 | clock | `internal/clock` is not importable; `policy`, `audit` and `httpx` each declare a small clock interface, and `audit.WithClock` takes the internal type. | `teams` declares its own `Clock` in `usecase` and adapts it where needed; the audit sink stamps `Record.Timestamp` from it. | Low |
-| 8 | `auth` | No real daemon adapter (known; waits for `agent-okta-d` `pkg/client`). | `newDaemonClient()` stub in `cmd/teams` returns `*auth.UnreachableError` (exit 3); see `adr-daemon-client-stub.md`. | Known |
+| 8 | `auth` | No real daemon adapter (known; waits for `agent-okta-d` `pkg/client`). | Resolved in core v0.2.1 (`auth/oktad`); wired in `cmd/teams`, see `adr-daemon-adapter-wired.md`. | Resolved |
 | 9 | `docgen` | `CommandTree.Commands` is flat. | Nested commands are named with a space (`thread get`). | Low |
 
 ## To confirm during implementation

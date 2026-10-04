@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -12,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stainedhead/agent-cli-core/auth"
 	"github.com/stainedhead/agent-cli-core/auth/authtest"
 	"github.com/stainedhead/agent-cli-core/httpx"
 	"github.com/stainedhead/agent-cli-core/output"
@@ -48,49 +46,9 @@ func testConfig(t *testing.T) appConfig {
 	return appConfig{
 		Env:        config.Env{PolicyPath: pp, StateDirOverride: filepath.Join(dir, "state"), RunID: "run-test"},
 		PolicyOpts: []policyfile.Option{policyfile.AllowUntrusted()},
-		Daemon:     unreachableClient{socket: "/run/test/agent-okta-d.sock"},
+		Daemon:     authtest.New(authtest.Valid),
 		Clock:      clock.NewFake(time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)),
 		HTTP:       httpx.Config{Jitter: -1},
-	}
-}
-
-func TestDaemonStubIsUnreachableExit3NamingSocket(t *testing.T) {
-	t.Setenv("AGENT_OKTA_D_SOCKET", "/tmp/custom-agent.sock")
-	c := newDaemonClient()
-	for name, fn := range map[string]func() (auth.Token, error){
-		"fetch":   func() (auth.Token, error) { return c.Fetch(context.Background(), "msgraph") },
-		"refresh": func() (auth.Token, error) { return c.Refresh(context.Background(), "msgraph") },
-	} {
-		_, err := fn()
-		var ue *auth.UnreachableError
-		if !errors.As(err, &ue) || ue.Socket != "/tmp/custom-agent.sock" {
-			t.Fatalf("%s: %v", name, err)
-		}
-		if output.ExitOf(err) != output.ExitAuth || !strings.Contains(err.Error(), "/tmp/custom-agent.sock") {
-			t.Fatalf("%s: exit %d, %q", name, output.ExitOf(err), err)
-		}
-	}
-	t.Setenv("AGENT_OKTA_D_SOCKET", "")
-	if daemonSocket() != config.DefaultSocket {
-		t.Fatalf("default socket = %q", daemonSocket())
-	}
-}
-
-func TestStubDaemonMakesEveryGraphCallExit3(t *testing.T) {
-	cfg := testConfig(t)
-	srv := graphtest.New(t)
-	cfg.GraphBaseURL = srv.BaseURL()
-	a, err := assemble(context.Background(), cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer a.close()
-	_, err = a.graph.Me(context.Background())
-	if output.ExitOf(err) != output.ExitAuth || !strings.Contains(err.Error(), "/run/test/agent-okta-d.sock") {
-		t.Fatalf("Me through stub: exit %d err %v", output.ExitOf(err), err)
-	}
-	if len(srv.Requests()) != 0 {
-		t.Fatal("no request may leave without a token")
 	}
 }
 
@@ -201,23 +159,11 @@ func TestNetworkCommandsFailClosedWithoutPolicy(t *testing.T) {
 	}
 }
 
-func TestCLIEndToEndStubDaemon(t *testing.T) {
-	cfg := testConfig(t)
-	d := cli.Deps{NewCommands: commandsFor(cfg), Selftest: selftestFor(cfg), Build: cli.BuildInfo{Version: "t"}}
-	code, out := runCLI(t, d, "whoami")
-	if code != output.ExitAuth || !strings.Contains(out, "/run/test/agent-okta-d.sock") {
-		t.Fatalf("whoami with stub daemon: %d %s", code, out)
-	}
-	if code, _ := runCLI(t, d, "destinations", "list"); code != 0 {
-		t.Fatalf("destinations needs no daemon: %d", code)
-	}
-}
-
 func TestSelftestRunsThroughAssembly(t *testing.T) {
 	cfg := testConfig(t)
 	d := cli.Deps{Selftest: selftestFor(cfg)}
 	code, out := runCLI(t, d, "selftest", "--read-only")
-	// With unwired use cases (or the stub daemon) rows fail, never panic;
+	// With unwired use cases rows fail, never panic;
 	// the command must yield a well-formed failure envelope, not crash.
 	if code == 0 {
 		t.Skip("selftest passes end to end; covered by integration tests")

@@ -8,7 +8,7 @@ The root skill still describes `teams` as "planned, not released" with PRD-level
 
 ### Status and framing
 
-- Remove the "planned, not released" banner and the "provisional format" note. Keep a short status note: the CLI exists, but network commands exit 3 until the `agent-okta-d` client adapter is released, and Graph behavior is unverified.
+- Remove the "planned, not released" banner and the "provisional format" note. Keep a short status note: the CLI exists and talks to `agent-okta-d` through core's oktad adapter, but Graph behavior is unverified.
 - The generated skill's front matter has `name: teams` and a description that embeds the build version ("Applies to teams <version>") and the untrusted-data warning. The root description is trigger-oriented ("Use when asked to post..."). Decide which form the root keeps; the generated text should not be pasted over the trigger description.
 
 ### Command surface
@@ -46,7 +46,7 @@ The root skill still describes `teams` as "planned, not released" with PRD-level
 - Idempotency: the same key with a different message exits 7; a key whose earlier send state is unknown exits 7 and must not be retried blindly; writes are never retried automatically. The root says the marker scan is "a planned P1 feature"; it is built behind `send.marker_scan` (default off) and unverified.
 - The loop guard is keyed on the full thread id; the root's `reply_depth_max` text is accurate.
 - Exit 9 also covers a missing, untrusted or invalid policy file, and an unknown id passed to `ack`.
-- Exit 1 also results from a failed `selftest` (including with the stub daemon, where the message still names the socket). Other network commands exit 3 with the daemon stub.
+- Exit 1 also results from a failed `selftest` (the message still names the socket when the daemon is unreachable). Other network commands exit 3 when the daemon is unreachable or the agent user is not enrolled, and 8 when it is degraded.
 
 ### Generated-skill differences worth deciding
 

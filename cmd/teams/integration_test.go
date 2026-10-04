@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stainedhead/agent-cli-core/auth"
 	"github.com/stainedhead/agent-cli-core/auth/authtest"
 	"github.com/stainedhead/agent-cli-core/output"
 
@@ -395,29 +393,6 @@ func TestITAuthScenarios(t *testing.T) {
 			t.Fatal("no post")
 		}
 	})
-}
-
-func TestITStubDaemonExit3(t *testing.T) {
-	e := newITEnv(t, authtest.Valid)
-	t.Setenv("AGENT_OKTA_D_SOCKET", itSocket)
-	e.cfg.Daemon = newDaemonClient()
-	for _, args := range [][]string{{"whoami"}, {"inbox"}, {"send", "--to", "chat:dev", "--text", "x"}} {
-		r := e.run(args...)
-		wantExit(t, strings.Join(args, " "), r, output.ExitAuth)
-	}
-	// selftest aggregates per-row probe failures into one general error; it
-	// still fails and names the socket.
-	if r := e.run("selftest", "--read-only"); r.code == 0 || !strings.Contains(r.out, itSocket) {
-		t.Fatalf("selftest with stub daemon: %d %s", r.code, r.out)
-	}
-	if len(e.srv.Requests()) != 0 {
-		t.Fatal("no request may leave")
-	}
-	wantExit(t, "destinations", e.run("destinations", "list"), 0)
-	var ue *auth.UnreachableError
-	if _, err := newDaemonClient().Fetch(context.Background(), graphProvider); !errors.As(err, &ue) || ue.Socket != itSocket {
-		t.Fatalf("stub: %v", err)
-	}
 }
 
 func TestITNoTokenInOutputAuditOrState(t *testing.T) {

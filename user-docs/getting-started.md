@@ -4,8 +4,8 @@
 
 - `teams version` works with no setup.
 - `teams destinations list` works offline once a valid, trusted policy file is in place.
-- Every command that talks to Microsoft Graph (`whoami`, `send`, `reply`, `inbox`, `ack`, `thread get`, `selftest`) needs a Graph token from the `agent-okta-d` daemon. The client adapter for that daemon has not been released, so `teams` currently reports the daemon as unreachable and exits with code 3, naming the socket path it tried. There are no fallback credentials and none will be added.
-- Because of that, nothing in this documentation about Graph behavior has been run against a real Microsoft 365 tenant. Endpoint shapes, permissions, consent requirements, throttling and Conditional Access behavior are all unverified. Treat them as expectations, not guarantees.
+- Every command that talks to Microsoft Graph (`whoami`, `send`, `reply`, `inbox`, `ack`, `thread get`, `selftest`) needs a Graph token from the `agent-okta-d` daemon. The daemon must be running and enrolled for the `msgraph` provider; if it is not reachable, `teams` exits with code 3 and names the socket path it tried. There are no fallback credentials and none will be added.
+- Nothing in this documentation about Graph behavior has been run against a real Microsoft 365 tenant. Endpoint shapes, permissions, consent requirements, throttling and Conditional Access behavior are all unverified. Treat them as expectations, not guarantees.
 
 Use this time to prepare the policy, the agent user and the tenant so that adoption is quick once the daemon adapter ships.
 
@@ -53,7 +53,7 @@ teams send --to channel:sdlc-alerts --text "Hello from the agent"
 teams inbox --wait 30
 ```
 
-Until then, steps 5 fail with exit 3 as described above. See [Troubleshooting](troubleshooting.md).
+If a step fails with exit 3 or 8, see [Troubleshooting](troubleshooting.md).
 
 ## Things to know before you rely on it
 

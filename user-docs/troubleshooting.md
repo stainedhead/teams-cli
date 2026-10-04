@@ -7,20 +7,24 @@ Every failure prints an envelope with `error.code` and `error.hint`, and the pro
 | 0 | `ok` | Success. An `inbox` with nothing new returns `[]` | Check `meta.truncated` on large lists |
 | 1 | `general` | Unexpected error; a failed `selftest` row; Graph 5xx after retries | Read `error.message`. For `selftest`, read the failing rows. Report if it persists |
 | 2 | `usage` | Bad flags, unknown command, a raw id used instead of an alias, bad `--since` | Fix the command; see [Usage](usage.md). Run `teams help` |
-| 3 | `auth` | Daemon unreachable; agent user needs re-enrollment; token rejected twice | See below. Do not retry in a loop; a human must act |
+| 3 | `auth` | Daemon unreachable; agent user needs re-enrollment or is revoked; credential not configured; token rejected twice | See below. Do not retry in a loop; a human must act |
 | 4 | `forbidden` | Graph refused (403): the agent user is not a member, admin consent is missing for channel read scopes, or a Teams policy blocks it | Check membership and consent. This is final until the tenant side changes |
 | 5 | `not_found` | Chat, channel or message gone; a `user:` destination has no one-to-one chat and `create_chat` is `false` | Check the ids in the policy; set `create_chat: true` if intended |
 | 6 | `policy_denied` | Destination not listed or `send`/`watch` off; mention not allowed; rate limit, per-run write cap or `reply_depth_max` reached; content filter hit; link not allow-listed; UPN does not match the policy | Read `error.message` and the hint. Fix the content or the policy; do not rephrase to evade a filter. Rate limit hints include a retry time |
 | 7 | `conflict` | Idempotency key reused with a different message; earlier send with that key is in an unknown state; corrupt send ledger; Graph 409 | See below |
-| 8 | `rate_limited` | Graph throttled (429/503) after bounded retries | Wait and retry later; send less often |
+| 8 | `rate_limited` | Graph throttled (429/503) after bounded retries; the credential daemon is degraded or asked for a retry | Wait the hinted time and retry; send less often |
 | 9 | `validation` | Policy missing, unreadable, untrusted or invalid; message empty, oversize or contains control characters; unknown id passed to `ack` | See below |
 
 ## Exit 3: authentication
 
-- The message names the daemon socket that was tried. Until the `agent-okta-d` client adapter is released, every network command exits 3 this way. This is expected, not a fault in your setup.
-- Once the adapter exists: check the daemon is running and that `AGENT_OKTA_D_SOCKET` (default `/run/agent-okta-d/agent-okta-d.sock`, unverified) matches it.
-- "re-enrollment required" or "revoked": a human must repeat the agent user's sign-in with the daemon. Disabling the Entra user is the intended kill switch and produces this too; how quickly it takes effect is unverified (assumed up to about 60 minutes).
+- "daemon unreachable": the message names the socket that was tried. Check the daemon is running and that `AGENT_OKTA_D_SOCKET` (default `/var/run/agentd/agentd.sock` on macOS, `/run/agentd/agentd.sock` on Linux, unverified) matches it.
+- "not configured" or an access error: the daemon does not serve the `msgraph` credential to this agent. A human must configure or enroll it in the daemon.
+- "re-enrollment required" or "revoked", with the remediation `a human must run: agent-okta-d enroll msgraph`: a human must repeat the agent user's sign-in with the daemon. Disabling the Entra user is the intended kill switch and produces this too; how quickly it takes effect is unverified (assumed up to about 60 minutes).
 - `teams` holds no fallback credentials and never prints tokens.
+
+## Exit 8: rate limited or daemon degraded
+
+Graph throttling and a degraded credential daemon both exit 8. The message carries a retry hint ("Retry after N seconds." or "Retry later."). Wait that long; do not retry in a tight loop. If it persists for the daemon, ask the operator to check `agent-okta-d` status.
 
 ## Exit 6: policy
 

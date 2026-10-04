@@ -61,7 +61,9 @@ func TestBadFixtureFails(t *testing.T) {
 		{"infra imports domain", "internal/infra/clock/x.go", ModPath + "/internal/domain", "outward"},
 		{"adapter sibling", "internal/adapters/cli/x.go", ModPath + "/internal/adapters/graph", "sibling"},
 		{"adapter imports cmd", "internal/adapters/cli/x.go", ModPath + "/cmd/teams", "cmd"},
-		{"okta daemon", "cmd/teams/x.go", "github.com/stainedhead/agent-okta-d/client", "agent-okta-d"},
+		{"okta daemon", "cmd/teams/x.go", OktaPath + "/pkg/client", "agent-okta-d"},
+		{"okta fake outside tests", "cmd/teams/x.go", OktaFake, "agent-okta-d"},
+		{"okta fake in an adapter test", "internal/adapters/cli/x_test.go", OktaFake, "agent-okta-d"},
 		{"unknown third party", "cmd/teams/x.go", "github.com/other/lib", "third-party"},
 	}
 	for _, c := range cases {
@@ -86,6 +88,14 @@ func TestGoodFixturePasses(t *testing.T) {
 	}
 }
 
+func TestOktaFakeAllowedInCmdTests(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "cmd/teams/x_test.go", "package main\n\nimport _ \""+OktaFake+"\"\n")
+	if got := CheckImports(root); len(got) != 0 {
+		t.Fatalf("unexpected violations: %v", got)
+	}
+}
+
 func TestGoModRules(t *testing.T) {
 	cases := []struct {
 		name, mod string
@@ -94,7 +104,7 @@ func TestGoModRules(t *testing.T) {
 		{"ok", "module m\n\nrequire (\n\t" + YAMLPath + " v1.19.2\n\t" + CorePath + " v0.1.0\n)\n", false},
 		{"replace", "module m\n\nreplace " + CorePath + " => ../core\n", true},
 		{"extra module", "module m\n\nrequire github.com/foo/bar v1.0.0\n", true},
-		{"okta", "module m\n\nrequire github.com/stainedhead/agent-okta-d v0.1.0\n", true},
+		{"okta (core's oktad dependency)", "module m\n\nrequire " + OktaPath + " v0.1.0\n", false},
 		{"single line ok", "module m\n\nrequire " + CorePath + " v0.1.0\n", false},
 	}
 	for _, c := range cases {
