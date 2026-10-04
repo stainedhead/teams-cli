@@ -92,7 +92,11 @@ func (s *service) post(ctx context.Context, c *call, q postReq) (SendResult, err
 	}
 	if q.dryRun {
 		c.outcome = outcomeDryRun
-		return SendResult{DryRun: true, ThreadID: q.threadID}, nil
+		return SendResult{
+			DryRun: true, ThreadID: q.threadID, Decision: "allow",
+			Destination: DestinationView{Alias: q.alias, Kind: q.alias.Kind(), DisplayName: dest.DisplayName, Send: dest.Send, Watch: dest.Watch},
+			Preview:     out.Text, PreviewHTML: out.HTML,
+		}, nil
 	}
 
 	chatID := dest.ChatID

@@ -2,7 +2,9 @@ package usecase_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/stainedhead/teams-cli/internal/domain"
 	"github.com/stainedhead/teams-cli/internal/usecase/usecasetest"
 )
 
@@ -55,4 +57,45 @@ func TestDestinationsPolicyError(t *testing.T) {
 	e.Provider.Err = errAmbiguous
 	_, err := e.Svc.Destinations(ctx)
 	wantExit(t, err, exitGeneral)
+}
+
+// FR-R3 (FR-1): whoami carries destinations, limits, poll interval, policy path and version.
+func TestWhoamiDetails(t *testing.T) {
+	e := newEnv(t)
+	e.Run.PolicyPath = "/etc/agent-cli/teams.policy.yaml"
+	svc := e.NewService()
+	res, err := svc.Whoami(ctx)
+	wantOK(t, err)
+	if res.PolicyPath != "/etc/agent-cli/teams.policy.yaml" || res.PolicyVersion != 1 {
+		t.Fatalf("policy path/version = %q/%d", res.PolicyPath, res.PolicyVersion)
+	}
+	if len(res.Destinations) != 6 || res.Destinations[0].Alias != "channel:alerts" {
+		t.Fatalf("destinations = %+v", res.Destinations)
+	}
+	l := res.Limits
+	if l.MaxResults != 50 || l.MaxWritesPerRun != 30 || l.MaxBytes != 200 || l.RatePerMinute != 10 || l.RatePerHour != 100 || l.ReplyDepthMax != 3 {
+		t.Fatalf("limits = %+v", l)
+	}
+	if res.PollInterval != 15*time.Second {
+		t.Fatalf("poll = %v", res.PollInterval)
+	}
+}
+
+// FR-R3 (FR-2): mentionable is true only for allow-listed aliases with the id fields a mention needs.
+func TestDestinationsMentionable(t *testing.T) {
+	e := envWith(t, func(p *domain.Policy) {
+		p.Send.Mentions.Allow = []domain.Alias{"user:jane", "user:bob", "chat:dev"}
+		b := p.Destinations["user:bob"]
+		b.DisplayName = "" // lacks a display name: not mentionable
+		p.Destinations["user:bob"] = b
+	})
+	res, err := e.Svc.Destinations(ctx)
+	wantOK(t, err)
+	got := map[domain.Alias]bool{}
+	for _, d := range res.Destinations {
+		got[d.Alias] = d.Mentionable
+	}
+	if !got["user:jane"] || got["user:bob"] || got["chat:dev"] || got["channel:alerts"] {
+		t.Fatalf("mentionable = %v", got)
+	}
 }

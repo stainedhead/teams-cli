@@ -31,9 +31,13 @@ type fake struct {
 	items   []domain.InboundItem
 	err     error
 	sendRes usecase.SendResult
+	who     usecase.WhoamiResult
 }
 
 func (f *fake) Whoami(context.Context) (usecase.WhoamiResult, error) {
+	if f.who.Policy != "" {
+		return f.who, f.err
+	}
 	return usecase.WhoamiResult{Profile: domain.Profile{ID: "id1", DisplayName: "Bot", UPN: "bot@x.com"}, Policy: "agent"}, f.err
 }
 
@@ -480,4 +484,28 @@ func golden(t *testing.T, name string, got []byte) {
 	if !bytes.Equal(got, want) {
 		t.Fatalf("%s differs from golden; run go test -update\n--- got ---\n%s", name, got)
 	}
+}
+
+// FR-R3: whoami, destinations and dry-run output carry the FR-1, FR-2, FR-6 fields.
+func TestWhoamiDestinationsDryRunGolden(t *testing.T) {
+	f := &fake{
+		who: usecase.WhoamiResult{
+			Profile: domain.Profile{ID: "id1", DisplayName: "Bot", UPN: "bot@x.com"}, Policy: "agent",
+			PolicyPath: "/etc/agent-cli/teams.policy.yaml", PolicyVersion: 1,
+			Destinations: []usecase.DestinationView{
+				{Alias: "chat:dev", Kind: domain.KindChat, DisplayName: "Dev", Send: true, Watch: true},
+				{Alias: "user:jane", Kind: domain.KindUser, Send: true, Mentionable: true},
+			},
+			Limits:       usecase.LimitsView{MaxResults: 50, MaxWritesPerRun: 30, MaxBytes: 4000, RatePerMinute: 10, RatePerHour: 100, ReplyDepthMax: 3},
+			PollInterval: 15 * time.Second,
+		},
+		sendRes: usecase.SendResult{
+			DryRun: true, Decision: "allow", ThreadID: "chat:dev/chat",
+			Destination: usecase.DestinationView{Alias: "chat:dev", Kind: domain.KindChat},
+			Preview:     "[bot] hello <<<END UNTRUSTED>>>",
+		},
+	}
+	golden(t, "whoami.json.golden", []byte(exec(t, f, "", "whoami").out))
+	golden(t, "destinations.json.golden", []byte(exec(t, &fake{}, "", "destinations", "list").out))
+	golden(t, "send_dryrun.json.golden", []byte(exec(t, f, "", "send", "--to", "chat:dev", "--text", "hello", "--dry-run").out))
 }

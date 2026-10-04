@@ -1,0 +1,1 @@
+{"ok":true,"data":[{"alias":"chat:dev","display_name":"Dev","kind":"chat","mentionable":false,"send":true,"watch":true},{"alias":"user:jane","kind":"user","mentionable":false,"send":false,"watch":false}],"meta":{"truncated":false,"next_offset":null,"count":2}}

@@ -29,7 +29,7 @@ Prints `version`, `commit` and `date`. Needs no policy and no network.
 teams destinations list
 ```
 
-Lists each policy destination as `{alias, kind, send, watch}` (plus `display_name` for `user:` entries). Reads the policy file only; no network and no daemon. Raw ids are never printed.
+Lists each policy destination as `{alias, kind, send, watch, mentionable}` (plus `display_name` when the policy sets one). `mentionable` is true when the alias is in `send.mentions.allow` and has the `aad_id` and `display_name` a mention needs. Reads the policy file only; no network and no daemon. Raw ids are never printed.
 
 ## whoami
 
@@ -37,7 +37,7 @@ Lists each policy destination as `{alias, kind, send, watch}` (plus `display_nam
 teams whoami
 ```
 
-Calls Graph `/me` once and returns `{id, display_name, upn, policy, version}`, where `policy` is the profile name. If the returned user principal name differs from the policy `upn`, it exits 6 before doing anything else.
+Calls Graph `/me` once and returns `{id, display_name, upn, policy, version, policy_path, policy_version, destinations, limits, poll_interval_seconds}`. `policy` is the profile name and `version` the tool version; `destinations` has the same items as `destinations list`; `limits` holds `max_results`, `max_writes_per_run`, `max_bytes`, `rate_per_minute`, `rate_per_hour` and `reply_depth_max`. If the returned user principal name differs from the policy `upn`, it exits 6 before doing anything else.
 
 ## send
 
@@ -48,7 +48,7 @@ teams send --to ALIAS (--text T | --file F|-) [--thread ID] [--mention ALIAS[,AL
 - Exactly one of `--text` or `--file`. `--file -` reads standard input (it must be piped, not a terminal). `--file` must name a regular file; input over 4 MiB is refused.
 - `--mention` takes `user:` aliases listed in the policy `send.mentions.allow`; it is repeatable and comma-separated lists work. Display names come from the policy. Channel, team and tag mentions are not supported.
 - `--thread` takes a `thread_id` from an inbox item and must belong to the same destination as `--to`; it posts a reply (same as `teams reply`).
-- `--dry-run` runs every check and reports the decision without posting, writing to the send history, or consuming rate limit. It exits 0 if the send would be allowed, otherwise with the denial code.
+- `--dry-run` runs every check and reports the decision without posting, writing to the send history, or consuming rate limit. It exits 0 if the send would be allowed, otherwise with the denial code. A dry run also returns `decision` (`allow`), `destination` (`{alias, kind}`), `preview` (the exact text that would be posted, including the policy prefix and mention markup, marked as untrusted) and `preview_html`.
 - `--idempotency-key` (1 to 128 characters of `A-Za-z0-9._:-`) makes retries safe. See below.
 
 ```

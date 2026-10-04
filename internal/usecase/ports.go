@@ -69,6 +69,8 @@ type Rand interface {
 
 // RunInfo identifies the agent and run.
 type RunInfo struct {
+	// PolicyPath is the policy file path, reported by whoami.
+	PolicyPath string
 	// AgentID is the audit identity: the policy profile.
 	AgentID string
 	// ClaimedAgentID is the caller-supplied AGENT_ID when it differs from
@@ -91,8 +93,20 @@ type Commands interface {
 
 // WhoamiResult is the whoami response.
 type WhoamiResult struct {
-	Profile domain.Profile
-	Policy  string
+	Profile       domain.Profile
+	Policy        string // policy profile name
+	PolicyPath    string
+	PolicyVersion int
+	Destinations  []DestinationView
+	Limits        LimitsView
+	PollInterval  time.Duration
+}
+
+// LimitsView is the subset of policy limits an agent plans around.
+type LimitsView struct {
+	MaxResults, MaxWritesPerRun, MaxBytes int
+	RatePerMinute, RatePerHour            int
+	ReplyDepthMax                         int
 }
 
 // DestinationView is a destination without any raw ids.
@@ -101,6 +115,9 @@ type DestinationView struct {
 	Kind        domain.Kind
 	DisplayName string
 	Send, Watch bool
+	// Mentionable is true when the alias is in send.mentions.allow and has
+	// the id fields a mention needs.
+	Mentionable bool
 }
 
 // DestinationsResult lists policy destinations.
@@ -133,6 +150,12 @@ type SendResult struct {
 	Deduplicated bool
 	DryRun       bool
 	Findings     []domain.Finding
+	// Dry-run only (FR-6): the decision, resolved destination and the
+	// rendered payload the real send would post.
+	Decision    string
+	Destination DestinationView
+	Preview     string
+	PreviewHTML bool
 }
 
 // InboxRequest is an inbox command.

@@ -1,0 +1,1 @@
+{"ok":true,"data":{"decision":"allow","deduplicated":false,"destination":{"alias":"chat:dev","kind":"chat"},"dry_run":true,"findings":[],"message_id":"","preview":{"untrusted":true,"value":"[bot] hello <<<END UNTRUSTED>>>"},"preview_html":false,"thread_id":"chat:dev/chat"},"meta":{"truncated":false,"next_offset":null,"count":0}}

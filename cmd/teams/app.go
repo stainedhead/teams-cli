@@ -88,7 +88,7 @@ func assemble(ctx context.Context, cfg appConfig) (*app, error) {
 	}
 	// The audit identity is the policy profile (policy wins, FR-R1); the
 	// agent-controlled AGENT_ID is only recorded when it differs.
-	run := usecase.RunInfo{AgentID: pol.Profile, RunID: cfg.Env.RunID}
+	run := usecase.RunInfo{AgentID: pol.Profile, RunID: cfg.Env.RunID, PolicyPath: cfg.Env.PolicyPath}
 	if cfg.Env.AgentID != "" && cfg.Env.AgentID != pol.Profile {
 		run.ClaimedAgentID = cfg.Env.AgentID
 	}

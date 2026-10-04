@@ -142,9 +142,10 @@ func TestITWhoamiDestinationsVersionSkill(t *testing.T) {
 	e := newITEnv(t, authtest.Valid)
 	r := e.run("whoami")
 	wantExit(t, "whoami", r, 0)
-	var who map[string]string
+	var who map[string]any
 	r.data(t, &who)
-	if who["upn"] != "bot@corp.example.com" || who["policy"] != "agent" || who["version"] != "t" {
+	if who["upn"] != "bot@corp.example.com" || who["policy"] != "agent" || who["version"] != "t" ||
+		who["policy_path"] != e.cfg.Env.PolicyPath || who["policy_version"] != float64(1) {
 		t.Fatalf("whoami: %v", who)
 	}
 	if got := e.fake.Providers(); len(got) == 0 || got[0] != graphProvider {

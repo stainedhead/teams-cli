@@ -573,3 +573,26 @@ func TestTokenHygiene(t *testing.T) {
 	joined := strings.Join(all, "\n")
 	mustNotContain(t, "outputs", joined, planted)
 }
+
+// FR-R3 (FR-6): dry-run reports the decision, destination and a rendered preview.
+func TestDryRunReportsDecisionDestinationPreview(t *testing.T) {
+	e := envWith(t, func(p *domain.Policy) { p.Send.Prefix = "[bot] " })
+	res, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "user:jane", Text: "hi <b>", Mentions: []domain.Alias{"user:jane"}, DryRun: true})
+	wantOK(t, err)
+	if res.Decision != "allow" || res.Destination.Alias != "user:jane" || res.Destination.Kind != domain.KindUser {
+		t.Fatalf("res = %+v", res)
+	}
+	want := `<at id="0">Jane Doe</at> [bot] hi &lt;b&gt;`
+	if res.Preview != want || !res.PreviewHTML {
+		t.Fatalf("preview = %q html=%v", res.Preview, res.PreviewHTML)
+	}
+	if e.Graph.CallCount("ResolveUserChat") != 0 || graphWrites(e) != 0 {
+		t.Fatal("dry-run had side effects")
+	}
+	// A real send does not carry a preview.
+	real, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x"})
+	wantOK(t, err)
+	if real.Preview != "" || real.Decision != "" {
+		t.Fatalf("real send = %+v", real)
+	}
+}

@@ -74,13 +74,17 @@ func presentItems(items []domain.InboundItem) []any {
 func presentDestinations(d usecase.DestinationsResult) []any {
 	out := make([]any, 0, len(d.Destinations))
 	for _, v := range d.Destinations {
-		o := obj{"alias": string(v.Alias), "kind": string(v.Kind), "send": v.Send, "watch": v.Watch}
-		if v.DisplayName != "" {
-			o["display_name"] = v.DisplayName
-		}
-		out = append(out, o)
+		out = append(out, presentDestination(v))
 	}
 	return out
+}
+
+func presentDestination(v usecase.DestinationView) obj {
+	o := obj{"alias": string(v.Alias), "kind": string(v.Kind), "send": v.Send, "watch": v.Watch, "mentionable": v.Mentionable}
+	if v.DisplayName != "" {
+		o["display_name"] = v.DisplayName
+	}
+	return o
 }
 
 func presentSend(r usecase.SendResult) obj {
@@ -88,21 +92,43 @@ func presentSend(r usecase.SendResult) obj {
 	for _, f := range r.Findings {
 		findings = append(findings, obj{"filter": f.Filter, "pattern_id": f.PatternID})
 	}
-	return obj{
+	o := obj{
 		"message_id":   r.MessageID,
 		"thread_id":    r.ThreadID,
 		"deduplicated": r.Deduplicated,
 		"dry_run":      r.DryRun,
 		"findings":     findings,
 	}
+	if r.DryRun {
+		o["decision"] = r.Decision
+		o["destination"] = obj{"alias": string(r.Destination.Alias), "kind": string(r.Destination.Kind)}
+		// The preview is the text this process would post; it contains the
+		// caller's own text, so it is marked untrusted like any free text.
+		o["preview"] = untrusted(r.Preview, "", time.Time{})
+		o["preview_html"] = r.PreviewHTML
+	}
+	return o
 }
 
 func presentWhoami(w usecase.WhoamiResult, b BuildInfo) obj {
+	dests := make([]any, 0, len(w.Destinations))
+	for _, v := range w.Destinations {
+		dests = append(dests, presentDestination(v))
+	}
+	l := w.Limits
 	return obj{
-		"id":           w.Profile.ID,
-		"display_name": w.Profile.DisplayName,
-		"upn":          w.Profile.UPN,
-		"policy":       w.Policy,
-		"version":      b.Version,
+		"id":             w.Profile.ID,
+		"display_name":   w.Profile.DisplayName,
+		"upn":            w.Profile.UPN,
+		"policy":         w.Policy,
+		"version":        b.Version,
+		"policy_path":    w.PolicyPath,
+		"policy_version": w.PolicyVersion,
+		"destinations":   dests,
+		"limits": obj{
+			"max_results": l.MaxResults, "max_writes_per_run": l.MaxWritesPerRun, "max_bytes": l.MaxBytes,
+			"rate_per_minute": l.RatePerMinute, "rate_per_hour": l.RatePerHour, "reply_depth_max": l.ReplyDepthMax,
+		},
+		"poll_interval_seconds": int(w.PollInterval / time.Second),
 	}
 }
