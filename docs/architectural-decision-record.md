@@ -13,6 +13,8 @@ Decisions are numbered ADR-n. Each lists context, decision and consequences. Sou
 | ADR-7 | Standard-library `flag` CLI | Accepted |
 | ADR-8 | Ledger fails closed, cursors fail open | Accepted |
 | ADR-9 | Poll only listed destinations (no chat discovery) | Accepted |
+| ADR-10 | Untrusted sender names and identity guard | Accepted |
+| ADR-11 | Trust-by-ownership policy file; dev override only in a tagged build | Accepted |
 
 ## ADR-1: Delegated user model
 
@@ -121,3 +123,24 @@ Decision: Poll only destinations in policy with `watch: true`, at most one list 
 Consequences: Latency and throttling depend on the number of watched destinations. Chat resolution still lists the agent user's one-to-one chats, bounded by `limits.max_chat_scan` (UA-16).
 
 Source: spec D4, D6, NFR-2
+
+## ADR-10: Untrusted sender names and identity guard
+
+Status: Accepted
+
+Context: Display names and message text are attacker-controlled, and a misconfigured policy could point the CLI at the wrong Entra user.
+
+Decision: Emit both `text` and `sender.name` as `output.Untrusted`; authorize only by the sender's Entra object id (optionally constrained by `tenant_id`); never use names or text. Once per run, require Graph `/me` `userPrincipalName` to equal the policy `upn`, otherwise exit 6 before any other call.
+
+Consequences: Output shape differs from the PRD sketch (`text` carries `author` and `timestamp` as well). The root skill documents the shape. Source: spec D13, D14.
+
+## ADR-11: Trust-by-ownership policy file; dev override only in a tagged build
+
+Status: Accepted
+
+Context: The policy is the agent's guardrail and must not be editable by the agent. The core exposes no standalone trusted-file check, and signed policies are not built.
+
+Decision: The policy file and all ancestors must be owned by root or a configured trusted uid, not group or world writable, opened with `O_NOFOLLOW` and verified with `fstat`; otherwise exit 9. The untrusted-file bypass `TEAMS_POLICY_INSECURE=1` exists only in a build with the `teamsdev` tag; release builds ignore it.
+
+Consequences: Developers need a tagged build or a root-owned test policy. Signature verification stays deferred (M4). Source: spec D12, FR-21.
+
