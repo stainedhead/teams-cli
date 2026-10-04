@@ -141,12 +141,12 @@ func TestContextCancelled(t *testing.T) {
 
 // FR-R7: every Graph failure exposes its HTTP status for the audit record.
 func TestErrorsCarryHTTPStatus(t *testing.T) {
-	type statuser interface{ HTTPStatus() int }
+	type httpStatusError interface{ HTTPStatus() int }
 	for _, status := range []int{403, 404, 429, 500} {
 		e := newEnv(t, authtest.Valid)
 		e.srv.AddRule(graphtest.Rule{Match: "POST /chats/c1/messages", Status: status, RetryAfter: "1"})
 		_, err := e.c.PostChat(ctx(), "c1", domain.OutMessage{Text: "hi"})
-		var hs statuser
+		var hs httpStatusError
 		if !errors.As(err, &hs) || hs.HTTPStatus() != status {
 			t.Errorf("status %d: err %v does not expose it", status, err)
 		}
