@@ -300,3 +300,45 @@ func FuzzNoSecretsInLine(f *testing.F) {
 		}
 	})
 }
+
+// Regression: valid aliases with long names must not be turned into
+// "channel:[redacted]" (by this package or by the core's opaque-run redaction).
+// Names that reach the 40 character threshold are written in a short stable
+// form; shorter ones are verbatim.
+func TestLongAliasResources(t *testing.T) {
+	long64 := "channel:" + strings.Repeat("a", 64)
+	record := func(res string) rec {
+		var buf bytes.Buffer
+		_ = NewWithWriter(&buf, Config{}).Record(context.Background(), domain.AuditEvent{Verb: "inbox", Resource: res, Outcome: "ok", Decision: "allow",
+			Extra: map[string]string{"skipped": res}})
+		return decode(t, buf.Bytes())[0]
+	}
+	for _, res := range []string{
+		"channel:platform-engineering-alerts/1696341900000", // 41 chars after the colon, but runs are split by "/" and ":"
+		"channel:" + strings.Repeat("a", 39),
+		"user:" + strings.Repeat("ab.", 15),
+	} {
+		if r := record(res); r.Resource != res || !strings.Contains(r.PolicyDecision, "skipped="+res) {
+			t.Errorf("resource %q mangled: %+v", res, r)
+		}
+	}
+	for _, res := range []string{long64, long64 + "/1696341900000", "user:" + strings.Repeat("b-c", 21)} {
+		r := record(res)
+		if strings.Contains(r.Resource, "redacted") || strings.Contains(r.Resource, "invalid") || !strings.Contains(r.Resource, "~") ||
+			len(r.Resource) > 64 || strings.Contains(r.PolicyDecision, "invalid") {
+			t.Errorf("long alias %q: %+v", res, r)
+		}
+		if r.Resource != record(res).Resource {
+			t.Errorf("short form must be stable")
+		}
+		if r.Resource == record(res+"x").Resource {
+			t.Errorf("distinct aliases must stay distinguishable")
+		}
+	}
+	// A bare long opaque run (token-like) is still redacted.
+	var buf bytes.Buffer
+	_ = NewWithWriter(&buf, Config{}).Record(context.Background(), domain.AuditEvent{Verb: "inbox", Resource: strings.Repeat("Q", 50), Decision: "allow"})
+	if decode(t, buf.Bytes())[0].Resource != "[redacted]" {
+		t.Error("opaque run not redacted")
+	}
+}

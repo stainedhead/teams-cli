@@ -8,6 +8,8 @@ package auditlog
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"regexp"
@@ -128,12 +130,29 @@ var (
 	guidRe     = regexp.MustCompile(`(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 	jwtRe      = regexp.MustCompile(`eyJ[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]*){0,2}`)
 	bearerRe   = regexp.MustCompile(`(?i)bearer\s+\S+`)
-	longRunRe  = regexp.MustCompile(`[A-Za-z0-9+/_=-]{40,}`)
+	// longRunRe mirrors the core's opaque-run redaction.
+	longRunRe = regexp.MustCompile(`[A-Za-z0-9_-]{40,}`)
+	aliasRe   = regexp.MustCompile(`\b(?:channel|chat|user):[a-z0-9._-]+`)
+	nameRunRe = regexp.MustCompile(`[A-Za-z0-9_-]{40,}`)
 )
 
 const redacted = "[redacted]"
 
+// shortenAliases rewrites alias names whose runs reach the core's opaque-run
+// threshold (40 characters) to "<first 24>~<sha256 prefix>". The core redacts
+// such runs inside every field, which would turn a valid long alias into
+// "channel:[redacted]"; the short form stays recognizable and correlatable.
+func shortenAliases(s string) string {
+	return aliasRe.ReplaceAllStringFunc(s, func(a string) string {
+		return nameRunRe.ReplaceAllStringFunc(a, func(run string) string {
+			sum := sha256.Sum256([]byte(run))
+			return run[:24] + "~" + hex.EncodeToString(sum[:4])
+		})
+	})
+}
+
 func scrub(s string) string {
+	s = shortenAliases(s)
 	s = bearerRe.ReplaceAllString(s, redacted)
 	s = jwtRe.ReplaceAllString(s, redacted)
 	s = threadIDRe.ReplaceAllString(s, redacted)
@@ -142,7 +161,7 @@ func scrub(s string) string {
 }
 
 var (
-	tokenRe = regexp.MustCompile(`^[A-Za-z0-9._:/,-]{0,128}$`)
+	tokenRe = regexp.MustCompile(`^[A-Za-z0-9._:/,~-]{0,128}$`)
 	keyRe   = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 )
 
@@ -166,7 +185,7 @@ func reason(s string) string {
 	var b strings.Builder
 	for _, r := range s {
 		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', strings.ContainsRune("._:/- ,[]", r):
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', strings.ContainsRune("._:/-~ ,[]", r):
 			b.WriteRune(r)
 		default:
 			b.WriteByte('_')
