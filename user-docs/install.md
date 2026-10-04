@@ -33,7 +33,7 @@ Install the binary somewhere on the agent's `PATH`, for example `/usr/local/bin/
 | Item | Default | Override | Who should own it |
 |---|---|---|---|
 | Policy file | `/etc/agent-cli/teams.policy.yaml` | `TEAMS_POLICY` | root, not writable by the agent |
-| State directory | `/var/lib/agent-cli/teams` | `state_dir` in policy, or `TEAMS_STATE_DIR` | the agent user, mode 0700 |
+| State directory | `/var/lib/agent-cli/teams` | `state_dir` in policy (`TEAMS_STATE_DIR` only if the policy omits it) | the agent user, mode 0700 |
 | Audit log | set by `audit.path` in policy | none | the agent user can append; mode 0600 |
 | Daemon socket | `/run/agent-okta-d/agent-okta-d.sock` | `AGENT_OKTA_D_SOCKET` | the daemon |
 

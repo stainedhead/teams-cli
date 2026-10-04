@@ -145,13 +145,16 @@ type SelftestCfg struct {
 type Policy struct {
 	Version                          int
 	Profile, UPN, TenantID, StateDir string
-	Destinations                     map[Alias]Destination
-	Instruct                         Instruct
-	Inbound                          Inbound
-	Send                             SendPolicy
-	Limits                           Limits
-	Audit                            AuditCfg
-	Selftest                         SelftestCfg
+	// StateDirPinned is true when the policy file sets state_dir explicitly;
+	// the agent-controlled TEAMS_STATE_DIR then cannot override it (FR-R1).
+	StateDirPinned bool
+	Destinations   map[Alias]Destination
+	Instruct       Instruct
+	Inbound        Inbound
+	Send           SendPolicy
+	Limits         Limits
+	Audit          AuditCfg
+	Selftest       SelftestCfg
 }
 
 // RawMention is a mention as read from Graph.

@@ -7,12 +7,14 @@ All behavior limits live in one YAML policy file. A starting point is [teams.pol
 | Variable | Default | Purpose |
 |---|---|---|
 | `TEAMS_POLICY` | `/etc/agent-cli/teams.policy.yaml` | Path to the policy file |
-| `TEAMS_STATE_DIR` | none | State directory; overrides `state_dir` in the policy |
+| `TEAMS_STATE_DIR` | none | State directory, used only when the policy does not set `state_dir`. A `state_dir` in the policy always wins |
 | `AGENT_OKTA_D_SOCKET` | `/run/agent-okta-d/agent-okta-d.sock` (assumed) | Daemon unix socket |
-| `AGENT_ID` | the policy `profile` | Agent identifier recorded in audit lines |
+| `AGENT_ID` | the policy `profile` | Does not change the audit identity, which is always the policy `profile`. A different value is recorded in the audit line as `claimed_agent=<id>` |
 | `AGENT_RUN_ID` | random per run | Optional run identifier recorded in audit lines |
 
 Blank values count as unset. Tokens are never read from the environment.
+
+Environment variables are controlled by the agent, so they cannot widen what the policy fixes. Set `state_dir` in the policy to pin the state directory. The state directory is still writable by the agent user, so the send rate limit, the reply-depth guard and the idempotency ledger protect against mistakes and prompt injection, not against a hostile process with file access to that directory.
 
 ## Global flags
 
@@ -34,7 +36,7 @@ Durations use Go syntax such as `15s`, `30m`, `24h`.
 | `profile` | yes | none | Free-text profile name shown by `whoami` |
 | `upn` | yes | none | Agent user principal name. Compared (case-insensitive) with Graph `/me` before any other call; a mismatch exits 6 |
 | `tenant_id` | no | unset | Tenant GUID. If set, senders from another tenant never get `can_instruct` |
-| `state_dir` | no | `/var/lib/agent-cli/teams` | Absolute path; `TEAMS_STATE_DIR` wins |
+| `state_dir` | no | `/var/lib/agent-cli/teams` | Absolute path. When set it cannot be overridden by `TEAMS_STATE_DIR` |
 | `audit.path` | yes | none | Absolute path of the JSON Lines audit log |
 
 ### `destinations`

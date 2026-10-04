@@ -86,15 +86,17 @@ func assemble(ctx context.Context, cfg appConfig) (*app, error) {
 	if cfg.Daemon == nil {
 		cfg.Daemon = newDaemonClient()
 	}
-	run := usecase.RunInfo{AgentID: cfg.Env.AgentID, RunID: cfg.Env.RunID}
-	if run.AgentID == "" {
-		run.AgentID = pol.Profile
+	// The audit identity is the policy profile (policy wins, FR-R1); the
+	// agent-controlled AGENT_ID is only recorded when it differs.
+	run := usecase.RunInfo{AgentID: pol.Profile, RunID: cfg.Env.RunID}
+	if cfg.Env.AgentID != "" && cfg.Env.AgentID != pol.Profile {
+		run.ClaimedAgentID = cfg.Env.AgentID
 	}
 	if run.RunID == "" {
 		run.RunID = config.NewRunID()
 	}
 
-	store, err := state.Open(cfg.Env.StateDir(pol.StateDir), cfg.Clock,
+	store, err := state.Open(cfg.Env.StateDir(pol.StateDir, pol.StateDirPinned), cfg.Clock,
 		state.WithCursorRetention(pol.Inbound.MaxLookback+time.Hour))
 	if err != nil {
 		return nil, err
@@ -115,7 +117,7 @@ func assemble(ctx context.Context, cfg appConfig) (*app, error) {
 	}
 
 	sink, err := auditlog.Open(auditlog.Config{
-		Path: pol.Audit.Path, AgentID: run.AgentID, RunID: run.RunID, Clock: cfg.Clock,
+		Path: pol.Audit.Path, AgentID: run.AgentID, ClaimedAgentID: run.ClaimedAgentID, RunID: run.RunID, Clock: cfg.Clock,
 	})
 	if err != nil {
 		return nil, err

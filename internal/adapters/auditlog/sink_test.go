@@ -342,3 +342,17 @@ func TestLongAliasResources(t *testing.T) {
 		t.Error("opaque run not redacted")
 	}
 }
+
+// FR-R1: a caller-claimed agent id that differs from the policy profile is
+// recorded so a spoof is detectable.
+func TestClaimedAgentRecorded(t *testing.T) {
+	var buf bytes.Buffer
+	s := NewWithWriter(&buf, Config{AgentID: "agent", ClaimedAgentID: "evil", RunID: "r", Clock: clock.NewFake(t0)})
+	if err := s.Record(context.Background(), domain.AuditEvent{Verb: "whoami", Outcome: "ok", Decision: "allow"}); err != nil {
+		t.Fatal(err)
+	}
+	r := decode(t, buf.Bytes())[0]
+	if r.AgentID != "agent" || r.PolicyDecision != "allow;claimed_agent=evil" {
+		t.Fatalf("record = %+v", r)
+	}
+}

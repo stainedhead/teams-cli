@@ -42,7 +42,7 @@ func TestSampleGolden(t *testing.T) {
 	}
 	want := domain.Policy{
 		Version: 1, Profile: "agent", UPN: "sdlc-reviewer-01@corp.example.com",
-		TenantID: "11111111-1111-1111-1111-111111111111", StateDir: "/var/lib/agent-cli/teams",
+		TenantID: "11111111-1111-1111-1111-111111111111", StateDir: "/var/lib/agent-cli/teams", StateDirPinned: true,
 		Destinations: map[domain.Alias]domain.Destination{
 			"channel:sdlc-alerts": {
 				Alias: "channel:sdlc-alerts", Kind: domain.KindChannel,

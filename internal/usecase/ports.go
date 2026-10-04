@@ -69,8 +69,12 @@ type Rand interface {
 
 // RunInfo identifies the agent and run.
 type RunInfo struct {
+	// AgentID is the audit identity: the policy profile.
 	AgentID string
-	RunID   string
+	// ClaimedAgentID is the caller-supplied AGENT_ID when it differs from
+	// AgentID; it is audited so a spoofed id is detectable (FR-R1).
+	ClaimedAgentID string
+	RunID          string
 }
 
 // Commands is the facade the CLI calls.

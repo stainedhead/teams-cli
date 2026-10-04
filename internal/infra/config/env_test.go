@@ -38,13 +38,18 @@ func TestBlankIsUnset(t *testing.T) {
 }
 
 func TestStateDirPrecedence(t *testing.T) {
-	if got := (Env{StateDirOverride: "/env"}).StateDir("/pol"); got != "/env" {
+	// FR-R1: a state_dir the policy sets wins over the agent-controlled env.
+	if got := (Env{StateDirOverride: "/env"}).StateDir("/pol", true); got != "/pol" {
+		t.Fatalf("pinned policy must win, got %q", got)
+	}
+	// The env applies only when the policy left state_dir unset.
+	if got := (Env{StateDirOverride: "/env"}).StateDir("", false); got != "/env" {
 		t.Fatal(got)
 	}
-	if got := (Env{}).StateDir("/pol"); got != "/pol" {
+	if got := (Env{}).StateDir("/pol", true); got != "/pol" {
 		t.Fatal(got)
 	}
-	if got := (Env{}).StateDir(" "); got != DefaultStateDir {
+	if got := (Env{}).StateDir(" ", false); got != DefaultStateDir {
 		t.Fatal(got)
 	}
 }

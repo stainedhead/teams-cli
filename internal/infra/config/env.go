@@ -30,8 +30,8 @@ const (
 // Env is the resolved process environment.
 type Env struct {
 	PolicyPath string
-	// StateDirOverride is TEAMS_STATE_DIR, empty when unset. It wins over the
-	// policy's state_dir; see StateDir.
+	// StateDirOverride is TEAMS_STATE_DIR, empty when unset. It applies only
+	// when the policy does not set state_dir; see StateDir.
 	StateDirOverride string
 	AgentID          string
 	RunID            string
@@ -60,10 +60,14 @@ func FromEnv(getenv func(string) string) Env {
 	return e
 }
 
-// StateDir returns the state directory: the environment override, else the
-// policy value, else the default.
-func (e Env) StateDir(policyValue string) string {
+// StateDir returns the state directory. A state_dir the policy sets
+// explicitly (pinned) always wins: TEAMS_STATE_DIR is agent-controlled and
+// must not reset rate, loop and idempotency history (FR-R1). The environment
+// override applies only when the policy left state_dir unset.
+func (e Env) StateDir(policyValue string, pinned bool) string {
 	switch {
+	case pinned && strings.TrimSpace(policyValue) != "":
+		return policyValue
 	case e.StateDirOverride != "":
 		return e.StateDirOverride
 	case strings.TrimSpace(policyValue) != "":

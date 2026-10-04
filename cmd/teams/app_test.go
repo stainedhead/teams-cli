@@ -144,7 +144,7 @@ func TestAssembleDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer a.close()
-	if a.run.AgentID != "agent-7" || a.run.RunID == "" {
+	if a.run.AgentID != "agent" || a.run.RunID == "" {
 		t.Fatalf("run = %+v", a.run)
 	}
 }
@@ -274,5 +274,60 @@ func TestResolveBuild(t *testing.T) {
 	}
 	if b := buildInfo(); b.Version == "" {
 		t.Fatal("empty version")
+	}
+}
+
+const pinnedPolicyYAML = `
+version: 1
+profile: agent
+upn: bot@corp.example.com
+state_dir: %STATE%
+destinations:
+  chat:dev:
+    chat_id: "19:x@thread.v2"
+    send: true
+audit:
+  path: %AUDIT%
+`
+
+// FR-R1: TEAMS_STATE_DIR must not move the state of a policy that sets state_dir.
+func TestPolicyStateDirCannotBeOverriddenByEnv(t *testing.T) {
+	cfg := testConfig(t)
+	dir := filepath.Dir(cfg.Env.PolicyPath)
+	pinned := filepath.Join(dir, "pinned")
+	yaml := strings.NewReplacer("%STATE%", pinned, "%AUDIT%", filepath.Join(dir, "audit", "a.jsonl")).Replace(pinnedPolicyYAML)
+	if err := os.WriteFile(cfg.Env.PolicyPath, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	evil := filepath.Join(t.TempDir(), "evil")
+	cfg.Env.StateDirOverride = evil
+	a, err := assemble(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.close()
+	if _, err := os.Stat(pinned); err != nil {
+		t.Fatalf("policy state dir not used: %v", err)
+	}
+	if _, err := os.Stat(evil); err == nil {
+		t.Fatal("env state dir must be ignored when the policy sets state_dir")
+	}
+}
+
+// FR-R1: AGENT_ID cannot override the audit identity when the policy has a
+// profile; the claimed id is recorded so a spoof is detectable.
+func TestAgentIDEnvCannotOverridePolicyProfile(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Env.AgentID = "someone-else"
+	a, err := assemble(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.close()
+	if a.run.AgentID != "agent" {
+		t.Fatalf("audit identity = %q, want the policy profile", a.run.AgentID)
+	}
+	if a.run.ClaimedAgentID != "someone-else" {
+		t.Fatalf("claimed = %q", a.run.ClaimedAgentID)
 	}
 }

@@ -31,6 +31,9 @@ type Config struct {
 	Path string
 	// AgentID and RunID identify the caller; they are written to every record.
 	AgentID, RunID string
+	// ClaimedAgentID, when set, is written as a claimed_agent extension so a
+	// caller-supplied id that differs from the policy profile is detectable.
+	ClaimedAgentID string
 	// Clock stamps records; nil leaves stamping to the core (system clock).
 	Clock usecase.Clock
 	// BlockVerbs are the verbs whose audit write failure fails the command.
@@ -101,7 +104,7 @@ func (s *Sink) Record(_ context.Context, e domain.AuditEvent) error {
 		Outcome:        token(e.Outcome),
 		HTTPStatus:     e.HTTPStatus,
 		Duration:       e.Duration,
-		PolicyDecision: foldDecision(e),
+		PolicyDecision: foldDecision(s.withClaimed(e)),
 	}
 	if s.cfg.Clock != nil {
 		rec.Timestamp = s.cfg.Clock.Now()
@@ -117,6 +120,19 @@ func (s *Sink) Record(_ context.Context, e domain.AuditEvent) error {
 		s.cfg.OnWriteError(err)
 	}
 	return nil
+}
+
+func (s *Sink) withClaimed(e domain.AuditEvent) domain.AuditEvent {
+	if s.cfg.ClaimedAgentID == "" || s.cfg.ClaimedAgentID == s.cfg.AgentID {
+		return e
+	}
+	x := make(map[string]string, len(e.Extra)+1)
+	for k, v := range e.Extra {
+		x[k] = v
+	}
+	x["claimed_agent"] = s.cfg.ClaimedAgentID
+	e.Extra = x
+	return e
 }
 
 // Close closes the underlying file. Records after Close fail as write errors.

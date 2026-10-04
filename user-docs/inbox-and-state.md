@@ -33,7 +33,7 @@ A corrupt file is renamed to `<name>.corrupt-<timestamp>` and treated as lost. F
 
 ## Volume guidance
 
-- Default location: `/var/lib/agent-cli/teams`. Override with `state_dir` in the policy or `TEAMS_STATE_DIR`.
+- Default location: `/var/lib/agent-cli/teams`. Set `state_dir` in the policy; `TEAMS_STATE_DIR` is honored only when the policy does not set it.
 - Use persistent storage. In containers, mount a volume; do not use the container's writable layer, `tmpfs` or any directory cleared on restart. Losing the state directory is the main way to get duplicate sends and re-delivered messages.
 - The directory is created with mode 0700 and must be writable by the agent user only.
 - One state directory per agent identity. Do not share it between different agent users or policies.

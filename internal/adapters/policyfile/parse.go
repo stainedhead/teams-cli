@@ -92,12 +92,13 @@ func (p *problems) add(format string, a ...any) { *p = append(*p, fmt.Sprintf(fo
 func convert(d fileDoc) (domain.Policy, error) {
 	var pr problems
 	p := domain.Policy{
-		Profile:  strings.TrimSpace(d.Profile),
-		UPN:      strings.TrimSpace(d.UPN),
-		TenantID: strings.ToLower(strings.TrimSpace(d.TenantID)),
-		StateDir: strings.TrimSpace(d.StateDir),
-		Audit:    domain.AuditCfg{Path: strings.TrimSpace(d.Audit.Path)},
-		Selftest: domain.SelftestCfg{NonMemberChatID: strings.TrimSpace(d.Selftest.NonMemberChatID)},
+		StateDirPinned: strings.TrimSpace(d.StateDir) != "",
+		Profile:        strings.TrimSpace(d.Profile),
+		UPN:            strings.TrimSpace(d.UPN),
+		TenantID:       strings.ToLower(strings.TrimSpace(d.TenantID)),
+		StateDir:       strings.TrimSpace(d.StateDir),
+		Audit:          domain.AuditCfg{Path: strings.TrimSpace(d.Audit.Path)},
+		Selftest:       domain.SelftestCfg{NonMemberChatID: strings.TrimSpace(d.Selftest.NonMemberChatID)},
 	}
 	switch {
 	case d.Version == nil:
