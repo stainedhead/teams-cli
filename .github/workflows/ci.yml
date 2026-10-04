@@ -1,11 +1,13 @@
 name: CI
 
-# Implements the BLD-1..BLD-6 requirements in this repository's PRD (CI/CD section).
-# Steps that need Go source are skipped while the repository has no .go files, so
-# CI passes trivially now and starts enforcing as soon as code lands.
+# Implements BLD-1..BLD-6 and DEP-1..DEP-6 from the PRD (FR-32).
+# No secrets are used: module fetches authenticate with the job's GITHUB_TOKEN only.
+# Tests use fakes; nothing here reaches a real tenant (BLD-4). No release workflow
+# exists (deferred, see docs/deferred.md).
 
 on:
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -45,18 +47,14 @@ jobs:
           out="$(gofmt -l .)"
           if [ -n "$out" ]; then echo "$out"; exit 1; fi
       - name: go vet
-        if: hashFiles('**/*.go') != ''
         run: go vet ./...
       - name: go test
-        if: hashFiles('**/*.go') != ''
         run: go test -race ./...
       - name: golangci-lint
-        if: hashFiles('**/*.go') != ''
         uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
       - name: govulncheck
-        if: hashFiles('**/*.go') != ''
         run: go run golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }} ./...
 
   # BLD-3: every release target is cross-compiled on each PR. Windows users run the
@@ -83,7 +81,6 @@ jobs:
       - name: Download modules
         run: go mod download
       - name: Build
-        if: hashFiles('**/*.go') != ''
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
