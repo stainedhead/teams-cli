@@ -11,8 +11,8 @@ import (
 )
 
 // The presenter marks everything written by other people as untrusted (D13):
-// message text and the sender's display name. Ids, aliases, booleans, times
-// and the link list (plain strings, never fetched) stay plain.
+// message text, the sender's display name and each link. Ids, aliases,
+// booleans and times stay plain.
 
 type obj = map[string]any
 
@@ -35,9 +35,10 @@ func untrusted(value, author string, at time.Time) output.Untrusted {
 }
 
 func presentItem(it domain.InboundItem) obj {
-	links := it.Links
-	if links == nil {
-		links = []string{}
+	// Link text and URLs come from the sender: each is marked untrusted (FR-R6).
+	links := make([]any, 0, len(it.Links))
+	for _, l := range it.Links {
+		links = append(links, untrusted(l, it.Sender.Name, it.Received))
 	}
 	return obj{
 		"id":        it.ID,

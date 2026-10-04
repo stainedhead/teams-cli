@@ -59,5 +59,5 @@ Until then, steps 5 fail with exit 3 as described above. See [Troubleshooting](t
 
 - Inbound latency equals the polling interval (default 15 seconds, minimum 5).
 - Messages in chats or channels not listed in the policy as watched destinations are never read, even if they mention the agent. A new direct message from a person is invisible until you add a `user:` destination for them.
-- Message text and sender display names are marked untrusted. Only senders whose Entra object id is in `instruct.commanders` get `can_instruct: true`.
+- Message text, sender display names and links are marked untrusted. Only senders whose Entra object id is in `instruct.commanders` get `can_instruct: true`.
 - Not supported: files and attachments, webhooks or change notifications, group-based commander lists, calls and meetings, external tenants or guests, native Windows.
