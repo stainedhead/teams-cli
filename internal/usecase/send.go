@@ -87,10 +87,13 @@ func (s *service) post(ctx context.Context, c *call, q postReq) (SendResult, err
 		return SendResult{}, err
 	}
 	now := s.d.Clock.Now()
-	if err := s.checkLimits(ctx, c, p, q.threadID, now); err != nil {
-		return SendResult{}, err
-	}
 	if q.dryRun {
+		// A preview has no reservation, so read the current limits here. Real
+		// sends use Claim below, which checks limits atomically after it has
+		// recognized an already-sent idempotency key.
+		if err := s.checkLimits(ctx, c, p, q.threadID, now); err != nil {
+			return SendResult{}, err
+		}
 		c.outcome = outcomeDryRun
 		return SendResult{
 			DryRun: true, ThreadID: q.threadID, Decision: "allow",
@@ -100,9 +103,15 @@ func (s *service) post(ctx context.Context, c *call, q postReq) (SendResult, err
 	}
 
 	chatID := dest.ChatID
+	createChat := false
 	if dest.Kind == domain.KindUser {
-		if chatID, _, err = s.resolveChat(ctx, dest, false); err != nil {
-			return SendResult{}, err
+		lookup := dest
+		lookup.CreateChat = false // a denied send or replay must not create a chat
+		if chatID, _, err = s.resolveChat(ctx, lookup, false); err != nil {
+			if !dest.CreateChat || output.CategoryOf(err) != output.CategoryNotFound {
+				return SendResult{}, err
+			}
+			createChat = true
 		}
 	}
 	if q.key != "" && p.Send.MarkerScan {
@@ -114,6 +123,12 @@ func (s *service) post(ctx context.Context, c *call, q postReq) (SendResult, err
 	res, ledgerKey, done, err := s.claim(ctx, c, p, dest, chatID, q, out, now)
 	if err != nil || done {
 		return res, err
+	}
+	if createChat {
+		if chatID, _, err = s.resolveChat(ctx, dest, false); err != nil {
+			_ = s.d.Ledger.Fail(ctx, ledgerKey, true) // no message was posted
+			return SendResult{}, err
+		}
 	}
 	if err := s.recordIntent(ctx, c); err != nil {
 		_ = s.d.Ledger.Fail(ctx, ledgerKey, true) // nothing was sent: release the slot

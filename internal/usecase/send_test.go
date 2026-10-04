@@ -274,13 +274,22 @@ func TestLoopGuardOnChatThread(t *testing.T) {
 }
 
 func TestLedgerErrorsBlockSend(t *testing.T) {
-	for _, m := range []string{"SentSince", "SentInThread", "Reserve"} {
+	for _, m := range []string{"Claim", "Reserve"} {
 		e := newEnv(t)
 		e.Ledger.Errs = map[string]error{m: domain.NewConflict("ledger corrupt", "remove it")}
 		_, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x", IdempotencyKey: "k"})
 		wantExit(t, err, exitConflict)
 		if graphWrites(e) != 0 {
 			t.Fatalf("%s: posted despite ledger failure", m)
+		}
+	}
+	for _, m := range []string{"SentSince", "SentInThread"} {
+		e := newEnv(t)
+		e.Ledger.Errs = map[string]error{m: domain.NewConflict("ledger corrupt", "remove it")}
+		_, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x", DryRun: true})
+		wantExit(t, err, exitConflict)
+		if graphWrites(e) != 0 {
+			t.Fatalf("%s: posted during dry run", m)
 		}
 	}
 }
@@ -319,6 +328,46 @@ func TestIdempotencyReplayChatThread(t *testing.T) {
 	wantOK(t, err)
 	if r.ThreadID != "chat:dev/chat" {
 		t.Fatalf("r = %+v", r)
+	}
+}
+
+func TestIdempotencyReplayWhenLimitsAreFull(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  func(*domain.Policy)
+	}{
+		{"minute rate", func(p *domain.Policy) { p.Send.Rate.PerMinute = 1 }},
+		{"run cap", func(p *domain.Policy) { p.Limits.MaxWritesPerRun = 1 }},
+		{"reply depth", func(p *domain.Policy) { p.Send.ReplyDepthMax = 1 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := envWith(t, tc.set)
+			req := usecase.SendRequest{Alias: "chat:dev", Text: "once", IdempotencyKey: "key-capped"}
+			first, err := e.Svc.Send(ctx, req)
+			wantOK(t, err)
+			replay, err := e.Svc.Send(ctx, req)
+			wantOK(t, err)
+			if !replay.Deduplicated || replay.MessageID != first.MessageID || graphWrites(e) != 1 {
+				t.Fatalf("first=%+v replay=%+v posts=%d", first, replay, graphWrites(e))
+			}
+			req.IdempotencyKey = "new-key"
+			_, err = e.Svc.Send(ctx, req)
+			wantExit(t, err, exitPolicy)
+		})
+	}
+}
+
+func TestRateDenialDoesNotCreateUserChat(t *testing.T) {
+	e := envWith(t, func(p *domain.Policy) {
+		p.Send.Rate.PerMinute = 1
+		p.Send.ReplyDepthMax = 0
+	})
+	_, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "first"})
+	wantOK(t, err)
+	_, err = e.Svc.Send(ctx, usecase.SendRequest{Alias: "user:bob", Text: "blocked", IdempotencyKey: "blocked"})
+	wantExit(t, err, exitPolicy)
+	if len(e.Graph.Created) != 0 || graphWrites(e) != 1 {
+		t.Fatalf("rate-denied send created a chat or posted: created=%v posts=%d", e.Graph.Created, graphWrites(e))
 	}
 }
 
