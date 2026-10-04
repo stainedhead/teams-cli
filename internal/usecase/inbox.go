@@ -13,7 +13,12 @@ import (
 )
 
 // Drop reasons added by the use case (Normalize supplies the others).
-const reasonHandle = "handle_not_enabled"
+const (
+	reasonHandle = "handle_not_enabled"
+	// reasonTruncated marks a poll that found more than one page of messages;
+	// the agent should poll again (FR-R2).
+	reasonTruncated = "truncated"
+)
 
 // retryAfterer is implemented by throttling errors that know Graph's
 // Retry-After; inbox --wait widens its sleep by it (FR-27).
@@ -190,6 +195,7 @@ func (s *service) poll(ctx context.Context, p domain.Policy, agentID string, des
 	})
 	if len(all) > limit {
 		all = all[:limit]
+		st.skipped["all:"+reasonTruncated]++
 	}
 	return all, st, nil
 }
@@ -205,6 +211,10 @@ func (s *service) pollDest(ctx context.Context, p domain.Policy, agentID string,
 	raws, err := s.fetch(ctx, p, d, cs, since)
 	if err != nil {
 		return nil, err
+	}
+	var truncated bool
+	if raws, truncated = capOldestRaw(raws, maxResults(p)); truncated {
+		st.skipped[string(d.Alias)+":"+reasonTruncated]++
 	}
 	seen := map[string]bool{}
 	var items []domain.InboundItem
@@ -231,6 +241,22 @@ func (s *service) pollDest(ctx context.Context, p domain.Policy, agentID string,
 	return state.Undelivered(items, now, lb), nil
 }
 
+// capOldestRaw keeps the oldest n messages (oldest first) so the watermark can
+// never advance past an undelivered one, and reports whether it cut anything.
+// Messages sharing the last kept modified time are kept too, because a
+// watermark covers a whole timestamp.
+func capOldestRaw(in []domain.RawMessage, n int) ([]domain.RawMessage, bool) {
+	sort.SliceStable(in, func(i, j int) bool { return in[i].Modified.Before(in[j].Modified) })
+	if n <= 0 || len(in) <= n {
+		return in, false
+	}
+	end := n
+	for end < len(in) && in[end].Modified.Equal(in[n-1].Modified) {
+		end++
+	}
+	return in[:end], end < len(in)
+}
+
 // fetch lists one destination: chat/user via the chat id, channels via the
 // channel list plus replies of threads the agent posted in (UA-3).
 func (s *service) fetch(ctx context.Context, p domain.Policy, d domain.Destination, cs domain.CursorState, since time.Time) ([]domain.RawMessage, error) {
@@ -239,7 +265,7 @@ func (s *service) fetch(ctx context.Context, p domain.Policy, d domain.Destinati
 		var msgs []domain.RawMessage
 		err := s.withChat(ctx, d, func(chatID string) error {
 			var e error
-			msgs, e = s.d.Graph.ListChatMessages(ctx, chatID, since, n)
+			msgs, e = s.d.Graph.ListChatMessages(ctx, chatID, since, 0) // whole window; capped oldest-first in pollDest (FR-R2)
 			return e
 		})
 		return msgs, err
@@ -247,7 +273,7 @@ func (s *service) fetch(ctx context.Context, p domain.Policy, d domain.Destinati
 	// The delta token is deliberately not used: a delta read returns only
 	// changes since the token, which would hide un-acked messages that D8
 	// requires inbox to re-deliver until acked.
-	msgs, _, err := s.d.Graph.ListChannelMessages(ctx, d.TeamID, d.ChannelID, "", since, n)
+	msgs, _, err := s.d.Graph.ListChannelMessages(ctx, d.TeamID, d.ChannelID, "", since, 0)
 	if err != nil {
 		return nil, err
 	}

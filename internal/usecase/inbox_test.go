@@ -411,3 +411,40 @@ func TestInboxPortErrors(t *testing.T) {
 		}
 	}
 }
+
+// FR-R2: a backlog larger than the page cap is delivered oldest-first across
+// inbox/ack cycles, nothing is lost, and a truncated poll says so.
+func TestInboxBacklogBeyondPageCapIsNeverLost(t *testing.T) {
+	const n, total = 5, 15
+	e := envWith(t, func(p *domain.Policy) { watchOnly("chat:dev")(p); p.Limits.MaxResults = n })
+	var want []string
+	for i := 0; i < total; i++ {
+		id := fmt.Sprintf("m%02d", i)
+		want = append(want, "chat:dev/"+id)
+		devChat(e, usecasetest.Msg(id, usecasetest.StrangerID, "hi", ago(time.Duration(total-i)*time.Minute)))
+	}
+	var got []string
+	truncatedPolls := 0
+	for cycle := 0; cycle < 10; cycle++ {
+		res, err := e.Svc.Inbox(ctx, usecase.InboxRequest{})
+		wantOK(t, err)
+		if len(res.Items) == 0 {
+			break
+		}
+		if len(res.Items) > n {
+			t.Fatalf("cycle %d: %d items exceed cap %d", cycle, len(res.Items), n)
+		}
+		if _, ok := res.Skipped["chat:dev:truncated"]; ok {
+			truncatedPolls++
+		}
+		got = append(got, ids(res.Items)...)
+		_, err = e.Svc.Ack(ctx, usecase.AckRequest{IDs: ids(res.Items)})
+		wantOK(t, err)
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("delivered %v\nwant      %v", got, want)
+	}
+	if truncatedPolls != 2 {
+		t.Fatalf("truncated polls = %d, want 2", truncatedPolls)
+	}
+}

@@ -18,6 +18,7 @@ Rules:
 - Messages older than `inbound.max_lookback` (default 30 minutes, at most 24 hours) that were never acked are dropped from delivery. Ack or process within that window.
 - Ordering is by receive time within one destination. There is no global ordering across destinations.
 - `ack` advances the read position only across a contiguous run of acked items, so acking out of order is safe but leaves earlier unacked items pending.
+- When more messages are waiting than one call returns (the `limits.max_results` cap or `--limit`), the oldest are returned first and `skipped` contains a `<alias>:truncated` (or `all:truncated`) entry. Ack the items and call `teams inbox` again; nothing is skipped over.
 - `--since CURSOR` replays without changing acknowledgements or the read position.
 
 ## State directory
