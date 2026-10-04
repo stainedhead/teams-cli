@@ -421,7 +421,8 @@ func TestMarkerScanOnAndOff(t *testing.T) {
 	}
 }
 
-func TestMarkerScanResolvesPending(t *testing.T) {
+// TestAssumedMarkerSurvivesInBody ASSUMPTION (UA-9, unverified against a real tenant).
+func TestAssumedMarkerSurvivesInBody(t *testing.T) {
 	e := envWith(t, func(p *domain.Policy) { p.Send.MarkerScan = true })
 	var marker string
 	e.Graph.PostErr = errAmbiguous

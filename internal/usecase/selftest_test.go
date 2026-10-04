@@ -82,6 +82,7 @@ func TestSelftestAllPass(t *testing.T) {
 
 func TestSelftestReadOnlySkipsOnlySendAllowed(t *testing.T) {
 	e := selftestEnv(t, nil)
+	e.Graph.UserChats = map[string]string{usecasetest.BobID: "bc", usecasetest.JaneID: "jc"}
 	e.Graph.ChatErr = map[string]error{"19:stranger@thread.v2": domain.NewNotFound("x", "")}
 	res, err := e.Svc.Selftest(ctx, usecase.SelftestRequest{ReadOnly: true})
 	wantOK(t, err)
@@ -245,4 +246,31 @@ func TestSelftestSendAllowedHonoursPolicyAndLoop(t *testing.T) {
 	e3.Provider.Err = errAmbiguous
 	_, err := e3.Svc.Selftest(ctx, usecase.SelftestRequest{})
 	wantExit(t, err, exitGeneral)
+}
+
+// A read-only selftest never creates a chat (the row is marked read-only).
+func TestSelftestReadOnlyNeverCreatesChat(t *testing.T) {
+	e := selftestEnv(t, nil) // user:bob and user:jane have create_chat true here
+	res, err := e.Svc.Selftest(ctx, usecase.SelftestRequest{ReadOnly: true})
+	wantOK(t, err)
+	if len(e.Graph.Created) != 0 {
+		t.Fatalf("created chats: %v", e.Graph.Created)
+	}
+	if r := rowMap(res)["user-chat-resolve"]; r.Status != "skip" {
+		t.Fatalf("row = %+v", r)
+	}
+	// A real failure in read-only mode still fails the row.
+	e2 := selftestEnv(t, nil)
+	e2.Graph.Fail = map[string]error{"ResolveUserChat": errAmbiguous}
+	res, _ = e2.Svc.Selftest(ctx, usecase.SelftestRequest{ReadOnly: true})
+	if r := rowMap(res)["user-chat-resolve"]; r.Status != "fail" {
+		t.Fatalf("row = %+v", r)
+	}
+	// An existing chat passes in read-only mode.
+	e3 := selftestEnv(t, nil)
+	e3.Graph.UserChats = map[string]string{usecasetest.BobID: "bc", usecasetest.JaneID: "jc"}
+	res, _ = e3.Svc.Selftest(ctx, usecase.SelftestRequest{ReadOnly: true})
+	if r := rowMap(res)["user-chat-resolve"]; r.Status != "pass" {
+		t.Fatalf("row = %+v", r)
+	}
 }

@@ -197,7 +197,8 @@ func TestInboxArgumentErrors(t *testing.T) {
 }
 
 // B8 (D6): user chat resolution.
-func TestInboxUserChatResolution(t *testing.T) {
+// TestAssumedUserChatCreateReturnsExisting ASSUMPTION (UA-6, unverified against a real tenant).
+func TestAssumedUserChatCreateReturnsExisting(t *testing.T) {
 	e := envWith(t, watchOnly("user:jane", "user:bob", "chat:dev"))
 	e.Graph.UserChats = nil
 	devChat(e, usecasetest.Msg("c1", usecasetest.StrangerID, "hi", ago(time.Minute)))
@@ -350,7 +351,8 @@ func TestInboxLookbackDefaultsAndCap(t *testing.T) {
 	}
 }
 
-func TestInboxChannelRepliesAndNoDelta(t *testing.T) {
+// TestAssumedChannelRepliesOnlyForPostedThreads ASSUMPTION (UA-3, unverified against a real tenant).
+func TestAssumedChannelRepliesOnlyForPostedThreads(t *testing.T) {
 	e := envWith(t, watchOnly("channel:alerts"))
 	e.Graph.Delta = "delta-xyz"
 	key := usecasetest.TeamID + "/" + usecasetest.ChannelID

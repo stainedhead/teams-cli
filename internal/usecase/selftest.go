@@ -60,7 +60,7 @@ func (s *service) selftest(ctx context.Context, p domain.Policy, r SelftestReque
 		s.rowSecret(p),
 		s.rowClassification(p),
 		s.rowMentionUnlisted(p),
-		needGraph("user-chat-resolve", func() SelftestRow { return s.rowUserChat(ctx, p) }),
+		needGraph("user-chat-resolve", func() SelftestRow { return s.rowUserChat(ctx, p, r.ReadOnly) }),
 		needGraph("negative-membership", func() SelftestRow { return s.rowNegative(ctx, p) }),
 		needGraph("inbox-read", func() SelftestRow { return s.rowInbox(ctx, p) }),
 	}
@@ -138,11 +138,17 @@ func (s *service) rowClassification(p domain.Policy) SelftestRow {
 	return SelftestRow{Name: name, Status: statusPass, Detail: "refused as expected"}
 }
 
-func (s *service) rowUserChat(ctx context.Context, p domain.Policy) SelftestRow {
+func (s *service) rowUserChat(ctx context.Context, p domain.Policy, readOnly bool) SelftestRow {
 	const name = "user-chat-resolve"
 	for _, a := range sortedAliases(p) {
 		if d := p.Destinations[a]; d.Kind == domain.KindUser {
+			if readOnly {
+				d.CreateChat = false // a read-only run must never create a chat
+			}
 			if _, _, err := s.resolveChat(ctx, d, true); err != nil {
+				if readOnly && output.CategoryOf(err) == output.CategoryNotFound {
+					return SelftestRow{Name: name, Status: statusSkip, Detail: "no existing chat; skipped in read-only mode"}
+				}
 				return SelftestRow{Name: name, Status: statusFail, Detail: err.Error()}
 			}
 			return SelftestRow{Name: name, Status: statusPass}

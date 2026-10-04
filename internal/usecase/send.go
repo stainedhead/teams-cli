@@ -47,9 +47,12 @@ func (s *service) Reply(ctx context.Context, r ReplyRequest) (res SendResult, er
 		if perr != nil {
 			return perr
 		}
-		q := postReq{alias: alias, threadID: domain.ThreadID(alias, root), text: r.Text, mentions: r.Mentions, key: r.IdempotencyKey, dryRun: r.DryRun}
+		q := postReq{alias: alias, threadID: domain.ThreadID(alias, "chat"), text: r.Text, mentions: r.Mentions, key: r.IdempotencyKey, dryRun: r.DryRun}
 		if alias.Kind() == domain.KindChannel {
+			// Chats have no reply threads: whatever root was passed, the loop
+			// guard and ledger key on the single chat thread.
 			q.root = root
+			q.threadID = domain.ThreadID(alias, root)
 		}
 		var e error
 		res, e = s.post(ctx, c, q)

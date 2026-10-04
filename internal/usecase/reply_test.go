@@ -126,3 +126,20 @@ func TestReplyMentionBuild(t *testing.T) {
 		t.Fatalf("msg = %+v", e.Graph.Posts[0].Msg)
 	}
 }
+
+// The loop guard keys on the chat thread whatever root a chat reply carries,
+// so item ids cannot be used to dodge reply_depth_max.
+func TestReplyChatLoopGuardIgnoresRoot(t *testing.T) {
+	e := newEnv(t) // ReplyDepthMax 3
+	for _, id := range []string{"chat:dev/m1", "chat:dev/m2", "chat:dev/chat"} {
+		_, err := e.Svc.Reply(ctx, usecase.ReplyRequest{ThreadID: id, Text: "x"})
+		wantOK(t, err)
+	}
+	_, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "x"})
+	wantExit(t, err, exitPolicy)
+	_, err = e.Svc.Reply(ctx, usecase.ReplyRequest{ThreadID: "chat:dev/m99", Text: "x"})
+	wantExit(t, err, exitPolicy)
+	if ev := lastEvent(t, e); ev.Decision != "deny:loop.reply_depth" {
+		t.Fatalf("decision = %q", ev.Decision)
+	}
+}
