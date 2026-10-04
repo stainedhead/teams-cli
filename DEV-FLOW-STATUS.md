@@ -1,0 +1,25 @@
+# Dev-Flow Status
+
+- **PRD:** teams-cli-PRD.md
+- **Branch:** feat/teams-cli
+- **Review PRD:** teams-cli-auto-review-PRD.md
+- **Spec dir:** specs/261003-teams-cli/
+- **Started:** 2026-10-04T00:23:39Z
+
+| Step | Name | Status | Start | End | Runtime (min) |
+|------|------|--------|-------|-----|---------------|
+| 0 | Pre-flight / PRD validation | ✅ Complete | 2026-10-04T00:23:39Z | 2026-10-04T00:24:25Z | 1 |
+| 1 | Create Spec from PRD | ✅ Complete | 2026-10-04T00:24:25Z | 2026-10-04T00:24:25Z | 1 |
+| 2 | Review Spec | ⬜ Pending | | | |
+| 3 | Implement Product | ⬜ Pending | | | |
+| 4 | Documentation and User Docs | ⬜ Pending | | | |
+| 5 | Code and Design Review | ⬜ Pending | | | |
+| 6 | Prepare Review PRD | ⬜ Pending | | | |
+| 7 | Archive Original Spec | ⬜ Pending | | | |
+| 8 | Spec Review Fixes | ⬜ Pending | | | |
+| 9 | Implement Review Fixes | ⬜ Pending | | | |
+| 10 | Archive Fixes Spec | ⬜ Pending | | | |
+| 11 | Final Quality Pass | ⬜ Pending | | | |
+| 12 | Process Analysis Report | ⬜ Pending | | | |
+| 13 | Archive Spec | ⬜ Pending | | | |
+| 14 | Open Pull Request | ⬜ Pending | | | |
