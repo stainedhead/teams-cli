@@ -1,7 +1,11 @@
 name: CI
 
 # Implements BLD-1..BLD-6 and DEP-1..DEP-6 from the PRD (FR-32).
-# No secrets are used: module fetches authenticate with the job's GITHUB_TOKEN only.
+# Module fetches of the private agent-cli-core repository authenticate with the
+# MODULE_READ_TOKEN secret (a read-only fine-grained token or deploy-key-backed
+# token with Contents:read on stainedhead/agent-cli-core), falling back to the
+# job's GITHUB_TOKEN, which can read it only if that repo grants Actions access
+# (docs/deferred.md, "CI dependency authentication").
 # Tests use fakes; nothing here reaches a real tenant (BLD-4). No release workflow
 # exists (deferred, see docs/deferred.md).
 
@@ -27,9 +31,9 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Authenticate module fetches with the job token
+      - name: Authenticate module fetches
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.MODULE_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: Download modules
         run: go mod download
@@ -48,6 +52,8 @@ jobs:
           if [ -n "$out" ]; then echo "$out"; exit 1; fi
       - name: go vet
         run: go vet ./...
+      - name: Release safety (vet -tags teamsdev, default build has no dev override)
+        run: make release-safety
       - name: go test
         run: go test -race ./...
       - name: golangci-lint
@@ -56,6 +62,24 @@ jobs:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }} ./...
+
+  # The state and fstrust code has unix-specific behavior (flock, ownership,
+  # /etc symlinks on macOS), so tests also run on a darwin runner.
+  test-darwin:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Authenticate module fetches
+        env:
+          GH_TOKEN: ${{ secrets.MODULE_READ_TOKEN || secrets.GITHUB_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - name: Download modules
+        run: go mod download
+      - name: go test
+        run: go test -race ./...
 
   # BLD-3: every release target is cross-compiled on each PR. Windows users run the
   # Linux build under WSL, so there is no windows target.
@@ -74,9 +98,9 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Authenticate module fetches with the job token
+      - name: Authenticate module fetches
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.MODULE_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: Download modules
         run: go mod download

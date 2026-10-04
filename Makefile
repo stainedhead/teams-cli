@@ -10,7 +10,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.dat
 
 export GOPRIVATE ?= github.com/stainedhead/*
 
-.PHONY: all build test race cover lint fmt vet tidy skill cross clean check
+.PHONY: all build test race cover lint fmt vet tidy skill cross clean check release-safety
 
 all: check build
 
@@ -51,6 +51,21 @@ tidy:
 skill:
 	mkdir -p dist
 	go run -ldflags '$(LDFLAGS)' $(PKG) skill > dist/teams-cli.md
+
+# Release safety (FR-R8): a default build must refuse a user-owned policy even
+# with TEAMS_POLICY_INSECURE=1 (exit 9), while a -tags teamsdev build honors the
+# override (any other exit). Also vets the teamsdev build.
+release-safety:
+	go vet -tags teamsdev ./...
+	@set -e; d="$$(mktemp -d)"; trap 'rm -rf "$$d"' EXIT; \
+	cp user-docs/teams.policy.sample.yaml "$$d/p.yaml"; chmod 600 "$$d/p.yaml"; \
+	go build -o "$$d/teams-default" $(PKG); go build -tags teamsdev -o "$$d/teams-dev" $(PKG); \
+	set +e; \
+	TEAMS_POLICY="$$d/p.yaml" TEAMS_POLICY_INSECURE=1 TEAMS_STATE_DIR="$$d/state" "$$d/teams-default" destinations list >/dev/null 2>&1; rc=$$?; \
+	if [ $$rc -ne 9 ]; then echo "release-safety: default build honored the dev override (exit $$rc, want 9)"; exit 1; fi; \
+	TEAMS_POLICY="$$d/p.yaml" TEAMS_POLICY_INSECURE=1 TEAMS_STATE_DIR="$$d/state" "$$d/teams-dev" destinations list >/dev/null 2>&1; rc=$$?; \
+	if [ $$rc -eq 9 ]; then echo "release-safety: teamsdev build did not honor the override (sanity check failed)"; exit 1; fi; \
+	echo "release-safety: ok"
 
 # Cross-compiles every release target (BLD-3): static linux, darwin/arm64.
 cross:
