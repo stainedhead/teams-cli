@@ -24,7 +24,7 @@ Every failure prints an envelope with `error.code` and `error.hint`, and the pro
 
 ## Exit 6: policy
 
-Run `teams destinations list` to see what is allowed. `teams send ... --dry-run` shows the decision without posting. Audit lines (`audit.path`) record the deciding rule and alias, never message bodies.
+Run `teams destinations list` to see what is allowed. `teams send ... --dry-run` shows the decision without posting. Audit lines (`audit.path`) record the deciding rule and alias, never message bodies. They also carry the HTTP status of the last Graph call (`http_status`), which tells a 403 from a 5xx. A `send` or `reply` that reaches the post writes an `intent` line first, then its final line.
 
 ## Exit 7: conflict
 

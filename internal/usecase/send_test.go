@@ -1,6 +1,7 @@
 package usecase_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -594,5 +595,45 @@ func TestDryRunReportsDecisionDestinationPreview(t *testing.T) {
 	wantOK(t, err)
 	if real.Preview != "" || real.Decision != "" {
 		t.Fatalf("real send = %+v", real)
+	}
+}
+
+// FR-R5: an intent record is written before the Graph POST; if it cannot be
+// written, nothing is posted.
+func TestAuditIntentBeforePostBlocksPostOnFailure(t *testing.T) {
+	e := newEnv(t)
+	e.Audit.Err = errors.New("disk full")
+	_, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "hi", IdempotencyKey: "k1"})
+	if err == nil || !strings.Contains(err.Error(), "nothing was sent") {
+		t.Fatalf("err = %v", err)
+	}
+	if graphWrites(e) != 0 || len(e.Ledger.Entries) != 0 {
+		t.Fatalf("post or reservation happened despite audit failure (writes=%d)", graphWrites(e))
+	}
+	// Healthy sink: the intent precedes the final event.
+	e2 := newEnv(t)
+	_, err = e2.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "hi"})
+	wantOK(t, err)
+	evs := e2.Audit.Events
+	if len(evs) != 2 || evs[0].Outcome != "intent" || evs[0].Verb != "send" || evs[1].Outcome != "ok" {
+		t.Fatalf("events = %+v", evs)
+	}
+}
+
+// FR-R5: delivered but the final record failed: the error names the message id.
+func TestDeliveredButUnauditedReportsMessageID(t *testing.T) {
+	e := newEnv(t)
+	e.Audit.ErrAfter = 1 // the intent record succeeds, the final one fails
+	e.Audit.Err = errors.New("disk full")
+	res, err := e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "hi"})
+	if err == nil || res.MessageID == "" {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "delivered but not audited") || !strings.Contains(msg, res.MessageID) {
+		t.Fatalf("err = %q", msg)
+	}
+	if graphWrites(e) != 1 {
+		t.Fatalf("writes = %d", graphWrites(e))
 	}
 }

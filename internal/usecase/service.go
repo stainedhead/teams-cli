@@ -21,6 +21,7 @@ const (
 	outcomeError        = "error"
 	outcomeDryRun       = "dry_run"
 	outcomeDeduplicated = "deduplicated"
+	outcomeIntent       = "intent" // pre-POST record of a send or reply
 )
 
 // Built-in defaults, applied only when a policy value is unset (the policy
@@ -70,10 +71,28 @@ func New(d Deps) Commands { return &service{d: d} }
 
 // call collects what one command wants written to its single audit event.
 type call struct {
+	verb     string
+	status   int // HTTP status of the last Graph call, 0 if none
 	resource string
 	outcome  string
 	decision string
 	extra    map[string]string
+}
+
+// httpStatuser is implemented by Graph errors that know the HTTP status.
+type httpStatuser interface{ HTTPStatus() int }
+
+// statusFor returns the status of the last Graph call: the typed error's
+// status on failure, else the recorded success status.
+func (c *call) statusFor(err error) int {
+	var hs httpStatuser
+	if err != nil && errors.As(err, &hs) {
+		return hs.HTTPStatus()
+	}
+	if err != nil && output.CategoryOf(err) != output.CategoryPolicyDenied {
+		return 0 // transport or local failure: no status is known
+	}
+	return c.status
 }
 
 func (c *call) set(k, v string) {
@@ -114,14 +133,15 @@ func (s *service) exec(ctx context.Context, verb, resource string, fn func(c *ca
 		return err
 	}
 	start := s.d.Clock.Now()
-	c := &call{resource: resource}
+	c := &call{verb: verb, resource: resource}
 	err := fn(c)
 	ev := domain.AuditEvent{
-		Verb:     verb,
-		Resource: c.resource,
-		Duration: s.d.Clock.Now().Sub(start),
-		Decision: "allow",
-		Extra:    c.extra,
+		Verb:       verb,
+		Resource:   c.resource,
+		HTTPStatus: c.statusFor(err),
+		Duration:   s.d.Clock.Now().Sub(start),
+		Decision:   "allow",
+		Extra:      c.extra,
 	}
 	denied := output.CategoryOf(err) == output.CategoryPolicyDenied && err != nil
 	switch {
@@ -145,7 +165,37 @@ func (s *service) exec(ctx context.Context, verb, resource string, fn func(c *ca
 		return err
 	}
 	if aerr != nil {
+		if id := c.extra["message_id"]; id != "" && c.outcome != outcomeDeduplicated {
+			return &deliveredUnauditedError{messageID: id, cause: aerr}
+		}
 		return fmt.Errorf("audit write failed: %w", aerr)
+	}
+	return nil
+}
+
+// deliveredUnauditedError reports a write that succeeded but whose final audit
+// record could not be written (FR-R5). The caller must not retry the send.
+type deliveredUnauditedError struct {
+	messageID string
+	cause     error
+}
+
+func (e *deliveredUnauditedError) Error() string {
+	return "message delivered but not audited (message_id " + e.messageID + "): audit write failed: " + e.cause.Error()
+}
+func (e *deliveredUnauditedError) Unwrap() error { return e.cause }
+func (e *deliveredUnauditedError) Hint() string {
+	return "do not resend; the message was posted. Fix the audit log (audit.path) and record message_id " + e.messageID + " manually"
+}
+
+// recordIntent writes the pre-POST audit record of a send or reply. If it
+// cannot be written the post is blocked (FR-28 / FR-R5).
+func (s *service) recordIntent(ctx context.Context, c *call) error {
+	err := s.d.Audit.Record(context.WithoutCancel(ctx), domain.AuditEvent{
+		Verb: c.verb, Resource: c.resource, Decision: "allow", Outcome: outcomeIntent,
+	})
+	if err != nil {
+		return fmt.Errorf("audit write failed before posting; nothing was sent: %w", err)
 	}
 	return nil
 }
@@ -207,6 +257,7 @@ func (s *service) begin(ctx context.Context, c *call) (domain.Policy, domain.Pro
 		if s.guard != nil {
 			return p, s.me, denyErr(c, *s.guard)
 		}
+		c.status = 200
 		return p, s.me, nil
 	}
 	me, err := s.d.Graph.Me(ctx)
@@ -214,6 +265,7 @@ func (s *service) begin(ctx context.Context, c *call) (domain.Policy, domain.Pro
 		return domain.Policy{}, domain.Profile{}, err
 	}
 	s.guarded, s.me = true, me
+	c.status = 200 // GET /me succeeded
 	if d := p.EvalUPN(me); !d.Allowed {
 		s.guard = &d
 		return p, me, denyErr(c, d)

@@ -115,7 +115,7 @@ func (c *Client) do(ctx context.Context, method, rawURL, op string, body any) (*
 	}
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return nil, unwrapURLError(err)
+		return nil, withStatus(unwrapURLError(err))
 	}
 	if resp.StatusCode/100 == 2 {
 		return resp, nil

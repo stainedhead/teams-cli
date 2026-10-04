@@ -99,6 +99,9 @@ func (s *service) post(ctx context.Context, c *call, q postReq) (SendResult, err
 		}, nil
 	}
 
+	if err := s.recordIntent(ctx, c); err != nil {
+		return SendResult{}, err
+	}
 	chatID := dest.ChatID
 	if dest.Kind == domain.KindUser {
 		if chatID, _, err = s.resolveChat(ctx, dest, false); err != nil {
@@ -255,6 +258,7 @@ func (s *service) deliver(ctx context.Context, c *call, dest domain.Destination,
 		thread = domain.ThreadID(q.alias, root)
 	}
 	now := s.d.Clock.Now()
+	c.status = 201
 	c.set("message_id", res.MessageID)
 	if q.key != "" {
 		if e := s.d.Ledger.Complete(ctx, q.key, res.MessageID, now); e != nil {

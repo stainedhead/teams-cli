@@ -26,6 +26,31 @@ func (e *apiError) Error() string             { return e.msg }
 func (e *apiError) Category() output.Category { return e.cat }
 func (e *apiError) Hint() string              { return e.hint }
 
+// HTTPStatus is the Graph response status (FR-R7).
+func (e *apiError) HTTPStatus() int { return e.status }
+
+// statusWrapped carries the HTTP status of a typed httpx failure to the audit
+// event without changing its message, category or unwrapping.
+type statusWrapped struct {
+	err    error
+	status int
+}
+
+func (e *statusWrapped) Error() string   { return e.err.Error() }
+func (e *statusWrapped) Unwrap() error   { return e.err }
+func (e *statusWrapped) HTTPStatus() int { return e.status }
+
+// withStatus attaches the HTTP status behind err, if any.
+func withStatus(err error) error {
+	if err == nil {
+		return nil
+	}
+	if s := statusOf(err); s != 0 {
+		return &statusWrapped{err: err, status: s}
+	}
+	return err
+}
+
 // statusOf returns the HTTP status behind err, or 0.
 func statusOf(err error) int {
 	var ae *apiError

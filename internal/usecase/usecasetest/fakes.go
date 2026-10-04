@@ -561,7 +561,9 @@ type AuditSink struct {
 	mu     sync.Mutex
 	Events []domain.AuditEvent
 	Err    error // returned by Record (event is still kept)
-	Closed bool
+	// ErrAfter lets the first ErrAfter records succeed before Err applies.
+	ErrAfter int
+	Closed   bool
 }
 
 // Record appends an event.
@@ -569,6 +571,9 @@ func (a *AuditSink) Record(_ context.Context, e domain.AuditEvent) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Events = append(a.Events, e)
+	if len(a.Events) <= a.ErrAfter {
+		return nil
+	}
 	return a.Err
 }
 

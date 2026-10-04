@@ -40,4 +40,4 @@ A corrupt file is renamed to `<name>.corrupt-<timestamp>` and treated as lost. F
 - One state directory per agent identity. Do not share it between different agent users or policies.
 - Back it up if duplicate sends would be costly. The data is small.
 - If you must reset it deliberately, stop the agent first, move the directory aside, and expect one bounded re-delivery of recent messages.
-- Keep the audit log (`audit.path`) on durable storage too. Writes are blocked if the audit log cannot be written; reads only warn.
+- Keep the audit log (`audit.path`) on durable storage too. Writes are blocked if the audit log cannot be written (`send` and `reply` write an `intent` line before posting, so nothing is posted when the log is unavailable); reads only warn. If a message was posted but the final audit line could not be written, the command exits non-zero with `message delivered but not audited` and the `message_id`; do not resend it.

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stainedhead/agent-cli-core/output"
+
 	"github.com/stainedhead/teams-cli/internal/domain"
 	"github.com/stainedhead/teams-cli/internal/usecase"
 	"github.com/stainedhead/teams-cli/internal/usecase/usecasetest"
@@ -99,13 +101,27 @@ func TestAuditLinePerCommand(t *testing.T) {
 	}
 	for i, st := range steps {
 		_ = st.run()
-		if len(e.Audit.Events) != i+1 || e.Audit.Events[i].Verb != st.verb {
+		// Sends and replies that reach the POST also write an "intent" record
+		// first (FR-R5); there is still exactly one final event per command.
+		var finals []domain.AuditEvent
+		for _, ev := range e.Audit.Events {
+			if ev.Outcome != "intent" {
+				finals = append(finals, ev)
+			}
+		}
+		if len(finals) != i+1 || finals[i].Verb != st.verb {
 			t.Fatalf("step %d (%s): events = %+v", i, st.verb, e.Audit.Events)
 		}
 	}
 	// Failure outcomes are classified.
-	if e.Audit.Events[3].Outcome != "denied" || e.Audit.Events[4].Outcome != "error" {
-		t.Fatalf("outcomes: %+v / %+v", e.Audit.Events[3], e.Audit.Events[4])
+	var finals []domain.AuditEvent
+	for _, ev := range e.Audit.Events {
+		if ev.Outcome != "intent" {
+			finals = append(finals, ev)
+		}
+	}
+	if finals[3].Outcome != "denied" || finals[4].Outcome != "error" {
+		t.Fatalf("outcomes: %+v / %+v", finals[3], finals[4])
 	}
 }
 
@@ -149,5 +165,49 @@ func TestAuditRecordedEvenWhenContextCancelled(t *testing.T) {
 	_, _ = e.Svc.Destinations(c)
 	if len(e.Audit.Events) != 1 {
 		t.Fatalf("events = %d", len(e.Audit.Events))
+	}
+}
+
+// statusErr is a Graph failure carrying its HTTP status (FR-R7).
+type statusErr struct {
+	cat    output.Category
+	status int
+}
+
+func (e statusErr) Error() string             { return "graph failed" }
+func (e statusErr) Category() output.Category { return e.cat }
+func (e statusErr) HTTPStatus() int           { return e.status }
+
+// FR-R7: the status of the last Graph call reaches the audit event.
+func TestAuditCarriesHTTPStatus(t *testing.T) {
+	cases := []struct {
+		name string
+		fail error
+		want int
+	}{
+		{"success", nil, 200},
+		{"403", statusErr{output.CategoryForbidden, 403}, 403},
+		{"429", statusErr{output.CategoryRateLimited, 429}, 429},
+	}
+	for _, tc := range cases {
+		e := envWith(t, watchOnly("chat:dev"))
+		if tc.fail != nil {
+			e.Graph.Fail = map[string]error{"ListChatMessages": tc.fail}
+		}
+		_, _ = e.Svc.Inbox(ctx, usecase.InboxRequest{})
+		evs := e.Audit.Events
+		if got := evs[len(evs)-1].HTTPStatus; got != tc.want {
+			t.Errorf("%s: HTTPStatus = %d, want %d", tc.name, got, tc.want)
+		}
+	}
+	// A successful post records 201; a command with no Graph call records 0.
+	e := newEnv(t)
+	_, _ = e.Svc.Send(ctx, usecase.SendRequest{Alias: "chat:dev", Text: "hi"})
+	if got := e.Audit.Events[len(e.Audit.Events)-1].HTTPStatus; got != 201 {
+		t.Errorf("send HTTPStatus = %d", got)
+	}
+	_, _ = e.Svc.Destinations(ctx)
+	if got := e.Audit.Events[len(e.Audit.Events)-1].HTTPStatus; got != 0 {
+		t.Errorf("destinations HTTPStatus = %d", got)
 	}
 }
